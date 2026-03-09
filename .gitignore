@@ -1,0 +1,7 @@
+# Common ignores
+node_modules/
+dist/
+.pnpm-store/
+*.local
+.env*.local
+.DS_Store
