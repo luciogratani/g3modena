@@ -238,7 +238,7 @@ export function CmsWebEditor() {
 
   const uploadToStorage = async (file: File, kind: "media" | "poster"): Promise<string | null> => {
     if (!supabase || !hasSupabaseConfig) {
-      setSyncMessage("Storage non configurato: upload non disponibile.")
+      setSyncMessage("Upload media non disponibile in questa demo.")
       return null
     }
 
@@ -335,7 +335,7 @@ export function CmsWebEditor() {
     }
 
     if (!supabase || !hasSupabaseConfig) {
-      setSyncMessage("Database non configurato: modifica disponibile solo localmente.")
+      setSyncMessage("Salvataggio remoto non disponibile in questa demo.")
       return
     }
 

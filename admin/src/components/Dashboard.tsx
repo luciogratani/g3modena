@@ -29,28 +29,51 @@ const chartSource = [
   { name: "Altro", value: 25, color: "hsl(var(--chart-3))" },
 ]
 
+const chartTraffic3Months = [
+  { name: "Mar", visite: 980, ctaClick: 210, formInviati: 52 },
+  { name: "Apr", visite: 1240, ctaClick: 268, formInviati: 67 },
+  { name: "Mag", visite: 1410, ctaClick: 315, formInviati: 74 },
+]
+
+const chartCityPipeline = [
+  { city: "Modena", nuovo: 12, colloquio: 7, formazione: 4 },
+  { city: "Sassari", nuovo: 9, colloquio: 5, formazione: 3 },
+]
+
 const chartConfig = {
   messaggi: { label: "Messaggi", color: "hsl(var(--chart-1))" },
   candidature: { label: "Candidature", color: "hsl(var(--chart-2))" },
 }
 
+const trafficChartConfig = {
+  visite: { label: "Visite", color: "hsl(var(--chart-1))" },
+  ctaClick: { label: "Click CTA", color: "hsl(var(--chart-2))" },
+  formInviati: { label: "Form inviati", color: "hsl(var(--chart-3))" },
+}
+
+const cityPipelineConfig = {
+  nuovo: { label: "Nuovo", color: "hsl(var(--chart-1))" },
+  colloquio: { label: "Colloquio", color: "hsl(var(--chart-2))" },
+  formazione: { label: "Formazione", color: "hsl(var(--chart-3))" },
+}
+
 const stats = [
   {
     title: "Messaggi contatti",
-    value: "—",
+    value: "6",
     description: "Da leggere",
     icon: MessageSquare,
   },
   {
     title: "Candidature",
-    value: "—",
-    description: "Lavora con noi",
+    value: "40",
+    description: "Totale board Modena + Sassari",
     icon: Briefcase,
   },
   {
     title: "Contenuti CMS",
-    value: "—",
-    description: "Sezioni modificabili",
+    value: "7",
+    description: "Sezioni editoriali monitorate",
     icon: FileEdit,
   },
 ] as const
@@ -63,7 +86,7 @@ export function Dashboard() {
       <header className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground mt-1">
-          Panoramica e accesso rapido alle sezioni dell’admin.
+          Panoramica operativa dei flussi principali (candidature Modena/Sassari + contatti).
         </p>
       </header>
 
@@ -88,7 +111,7 @@ export function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Messaggi e candidature per mese</CardTitle>
-            <CardDescription>Dati placeholder – da collegare a Supabase</CardDescription>
+            <CardDescription>Panoramica volume richieste e candidature</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[240px] w-full">
@@ -96,7 +119,7 @@ export function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <ChartTooltip content={<ChartTooltipContent />} cursor={false} isAnimationActive={false} />
                 <Bar dataKey="messaggi" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="candidature" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -107,12 +130,12 @@ export function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Fonte traffico (candidature)</CardTitle>
-            <CardDescription>Distribuzione per source UTM – dati placeholder</CardDescription>
+            <CardDescription>Distribuzione candidature per sorgente</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={{ value: { label: "Candidature" } }} className="h-[240px] w-full">
               <PieChart>
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <ChartTooltip content={<ChartTooltipContent />} cursor={false} isAnimationActive={false} />
                 <Pie
                   data={chartSource}
                   dataKey="value"
@@ -134,35 +157,53 @@ export function Dashboard() {
         </Card>
       </div>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle>Trend ultimi mesi</CardTitle>
-          <CardDescription>Andamento messaggi contatti – dati placeholder</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={{ messaggi: { label: "Messaggi", color: "hsl(var(--chart-1))" } }} className="h-[200px] w-full">
-            <AreaChart data={chartSubmissions}>
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Area
-                type="monotone"
-                dataKey="messaggi"
-                stroke="hsl(var(--chart-1))"
-                fill={`url(#${gradientId})`}
-                strokeWidth={2}
-              />
-            </AreaChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Pipeline candidature per città</CardTitle>
+            <CardDescription>Focus operativo su Modena e Sassari</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={cityPipelineConfig} className="h-[220px] w-full">
+              <BarChart data={chartCityPipeline}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="city" />
+                <YAxis />
+                <ChartTooltip content={<ChartTooltipContent />} cursor={false} isAnimationActive={false} />
+                <Bar dataKey="nuovo" stackId="city" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="colloquio" stackId="city" fill="hsl(var(--chart-2))" />
+                <Bar dataKey="formazione" stackId="city" fill="hsl(var(--chart-3))" radius={[0, 0, 4, 4]} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Traffico ultimi 3 mesi</CardTitle>
+            <CardDescription>Visite, click CTA e form inviati</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={trafficChartConfig} className="h-[220px] w-full">
+              <AreaChart data={chartTraffic3Months}>
+                <defs>
+                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.28} />
+                    <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <ChartTooltip content={<ChartTooltipContent />} cursor={false} isAnimationActive={false} />
+                <Area type="monotone" dataKey="visite" stroke="hsl(var(--chart-1))" fill={`url(#${gradientId})`} strokeWidth={2} />
+                <Area type="monotone" dataKey="ctaClick" stroke="hsl(var(--chart-2))" fill="none" strokeWidth={2} />
+                <Area type="monotone" dataKey="formInviati" stroke="hsl(var(--chart-3))" fill="none" strokeWidth={2} />
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

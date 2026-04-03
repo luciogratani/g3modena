@@ -73,7 +73,7 @@ export function SeoSettingsPage() {
   const [message, setMessage] = useState(
     hasSupabaseConfig
       ? "Configura i metadata SEO e salva manualmente."
-      : "Supabase non configurato: puoi modificare ma non salvare in database."
+      : "Modalita demo: puoi modificare i campi, il salvataggio remoto non e disponibile."
   )
   const [showValidation, setShowValidation] = useState(false)
 
@@ -145,7 +145,7 @@ export function SeoSettingsPage() {
       return
     }
     if (!supabase || !hasSupabaseConfig) {
-      setMessage("Supabase non configurato: salvataggio non disponibile.")
+      setMessage("Salvataggio remoto non disponibile in questa demo.")
       return
     }
 

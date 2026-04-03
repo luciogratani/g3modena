@@ -357,7 +357,7 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: Candidate
                       <AlertDialogHeader>
                         <AlertDialogTitle>Svuotare Archivio?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Questa azione rimuove tutti i candidati dalla colonna Archivio (mock).
+                          Questa azione rimuove tutti i candidati dalla colonna Archivio.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

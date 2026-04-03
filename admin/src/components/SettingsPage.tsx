@@ -48,7 +48,7 @@ export function SettingsPage({
     checkedAt: null,
     detail: hasSupabaseConfig
       ? "Eseguo la prima verifica di connettivita..."
-      : "Configura VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY per abilitare il monitor.",
+      : "Connessione dati non ancora disponibile in questa demo.",
   })
 
   const handleThemeChange = (value: string) => {
@@ -63,7 +63,7 @@ export function SettingsPage({
         status: "misconfigured",
         latencyMs: null,
         checkedAt: new Date().toISOString(),
-        detail: "Variabili ambiente Supabase mancanti o non valide.",
+        detail: "Configurazione connessione non disponibile.",
       })
       return
     }
@@ -71,7 +71,7 @@ export function SettingsPage({
     setMonitorState((previous) => ({
       ...previous,
       status: "checking",
-      detail: "Controllo stato client Supabase...",
+      detail: "Controllo stato connessione...",
     }))
 
     const startTime = performance.now()
@@ -80,7 +80,7 @@ export function SettingsPage({
       const latencyMs = Math.round(performance.now() - startTime)
 
       if (error) {
-        const message = error.message || "Errore sconosciuto durante il check Supabase."
+        const message = error.message || "Errore sconosciuto durante la verifica connessione."
         const isConfigurationError = /invalid api key|invalid jwt|missing/i.test(message)
         setMonitorState({
           status: isConfigurationError ? "misconfigured" : "offline",
@@ -95,7 +95,7 @@ export function SettingsPage({
         status: "online",
         latencyMs,
         checkedAt: new Date().toISOString(),
-        detail: "Client Supabase raggiungibile e operativo.",
+        detail: "Connessione attiva e operativa.",
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Errore di rete durante il check."
@@ -170,13 +170,13 @@ export function SettingsPage({
           <CardHeader>
             <div className="flex items-center gap-2">
               <Activity className="size-4 text-muted-foreground" />
-              <CardTitle>Monitor Supabase</CardTitle>
+              <CardTitle>Stato connessione dati</CardTitle>
               <Badge variant={STATUS_BADGE_VARIANT[monitorState.status]}>
                 {STATUS_LABEL[monitorState.status]}
               </Badge>
             </div>
             <CardDescription>
-              Stato client/server Supabase per diagnosi rapida in sviluppo.
+              Verifica rapida dello stato della connessione dati.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -184,7 +184,7 @@ export function SettingsPage({
               <p>
                 Endpoint:{" "}
                 <span className="font-medium text-foreground">
-                  {supabaseUrl ?? "Non configurato"}
+                  {supabaseUrl ?? "Non disponibile"}
                 </span>
               </p>
               <p>
@@ -214,7 +214,7 @@ export function SettingsPage({
               className="w-full justify-center sm:w-auto"
               onClick={() => void runSupabaseCheck()}
               disabled={monitorState.status === "checking"}
-              aria-label="Riprova verifica Supabase"
+              aria-label="Riprova verifica connessione"
             >
               <RotateCw
                 data-icon="inline-start"
@@ -232,7 +232,7 @@ export function SettingsPage({
               <CardTitle>Account</CardTitle>
             </div>
             <CardDescription>
-              Azioni sessione utente (UI placeholder finché auth non è collegata).
+              Gestione sessione utente.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -243,7 +243,6 @@ export function SettingsPage({
               aria-label="Esegui logout"
               onClick={() => {
                 setLogoutClicked(true)
-                console.info("[SettingsPage] Logout UI only: auth backend non ancora integrata.")
               }}
             >
               <LogOut data-icon="inline-start" />
@@ -251,9 +250,9 @@ export function SettingsPage({
             </Button>
             {logoutClicked ? (
               <Alert>
-                <AlertTitle>Logout non attivo</AlertTitle>
+                <AlertTitle>Logout in preparazione</AlertTitle>
                 <AlertDescription>
-                  Questa azione è solo UI al momento. L&apos;integrazione auth sarà aggiunta in seguito.
+                  La procedura completa di uscita sara disponibile nel prossimo aggiornamento.
                 </AlertDescription>
               </Alert>
             ) : null}

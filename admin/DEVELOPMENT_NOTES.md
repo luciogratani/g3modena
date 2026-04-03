@@ -11,6 +11,18 @@ Queste note descrivono lo stato reale di `admin` in fase sviluppo demo/pre-clien
 
 ## Stato corrente (aggiornato)
 
+### 0) Dashboard / Overview
+
+Implementato (mock coerente):
+- [x] mantenuti i grafici principali:
+  - `Messaggi e candidature per mese`
+  - `Fonte traffico (candidature)`
+- [x] sostituito il blocco `Trend ultimi mesi` con `Traffico ultimi 3 mesi`:
+  - serie mock: `visite`, `click CTA`, `form inviati`.
+- [x] aggiunto blocco `Pipeline candidature per citta`:
+  - confronto `Modena` / `Sassari` su stati `Nuovo`, `Colloquio`, `Formazione`.
+- [x] aggiornate le KPI card top con valori demo piu realistici per presentazione.
+
 ### 1) Board candidature (`CandidatiBoard`)
 
 Implementato:

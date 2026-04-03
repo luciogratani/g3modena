@@ -67,10 +67,10 @@ export function ContactMessagesPage() {
           <div className="flex items-center gap-2">
             <Inbox className="size-5 text-muted-foreground" />
             <CardTitle className="text-lg">Inbox messaggi</CardTitle>
-            <Badge variant="secondary">MVP locale persistente</Badge>
+            <Badge variant="secondary">Demo operativa</Badge>
           </div>
           <CardDescription>
-            Struttura pronta per integrazione backend: lista, filtro stato, ricerca testuale, dettaglio e cambio stato.
+            Lista messaggi con ricerca, filtro stato, dettaglio e aggiornamento rapido.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
