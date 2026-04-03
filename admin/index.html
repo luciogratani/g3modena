@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>G3 Modena – Admin</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        var k = "admin-theme";
+        var kBase = "admin-theme-base";
+        var v = localStorage.getItem(k);
+        if (v === "dark" || (v !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches))
+          document.documentElement.classList.add("dark");
+        else
+          document.documentElement.classList.remove("dark");
+        var base = localStorage.getItem(kBase);
+        var allowed = ["neutral","stone","zinc","mauve","olive","mist","taupe"];
+        if (base && allowed.indexOf(base) !== -1) {
+          if (base !== "neutral") document.documentElement.setAttribute("data-base", base);
+        } else {
+          document.documentElement.removeAttribute("data-base");
+        }
+      })();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

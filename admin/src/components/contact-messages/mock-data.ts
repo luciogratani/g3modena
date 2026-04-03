@@ -1,0 +1,40 @@
+import type { ContactMessage } from "./types"
+
+export const CONTACT_MESSAGES_MOCK: ContactMessage[] = [
+  {
+    id: "msg-001",
+    fullName: "Giulia Ferri",
+    company: "Ferri Eventi",
+    email: "giulia@ferrieventi.it",
+    phone: "+39 348 1112233",
+    city: "Modena",
+    message: "Buongiorno, vorremmo un incontro per valutare il servizio di sala per un evento corporate a maggio.",
+    status: "nuovo",
+    createdAt: "2026-03-25T09:32:00.000Z",
+    source: "web_contact_form",
+  },
+  {
+    id: "msg-002",
+    fullName: "Marco Carta",
+    company: "",
+    email: "marco.carta@email.it",
+    phone: "+39 347 9955123",
+    city: "Sassari",
+    message: "Avete disponibilita per una cena privata a giugno? Ci servono circa 8 persone di sala.",
+    status: "letto",
+    createdAt: "2026-03-24T14:10:00.000Z",
+    source: "web_contact_form",
+  },
+  {
+    id: "msg-003",
+    fullName: "Laura Bini",
+    company: "Studio Bini",
+    email: "laura@studiobini.it",
+    phone: "+39 339 3344556",
+    city: "Bologna",
+    message: "Cerchiamo supporto per un catering di fascia premium. Potete richiamarci entro domani?",
+    status: "archiviato",
+    createdAt: "2026-03-22T11:48:00.000Z",
+    source: "web_contact_form",
+  },
+]
