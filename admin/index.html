@@ -9,19 +9,11 @@
     <script>
       (function () {
         var k = "admin-theme";
-        var kBase = "admin-theme-base";
         var v = localStorage.getItem(k);
         if (v === "dark" || (v !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches))
           document.documentElement.classList.add("dark");
         else
           document.documentElement.classList.remove("dark");
-        var base = localStorage.getItem(kBase);
-        var allowed = ["neutral","stone","zinc","mauve","olive","mist","taupe"];
-        if (base && allowed.indexOf(base) !== -1) {
-          if (base !== "neutral") document.documentElement.setAttribute("data-base", base);
-        } else {
-          document.documentElement.removeAttribute("data-base");
-        }
       })();
     </script>
     <div id="root"></div>

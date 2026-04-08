@@ -12,65 +12,32 @@ import {
 import { useSidebar } from "@/components/ui/sidebar"
 
 const STORAGE_KEY = "admin-theme"
-const STORAGE_KEY_BASE = "admin-theme-base"
 
-export const SHADCN_BASE_COLORS = [
-  "neutral",
-  "stone",
-  "zinc",
-  "mauve",
-  "olive",
-  "mist",
-  "taupe",
-] as const
-
-export type ShadcnBaseColor = (typeof SHADCN_BASE_COLORS)[number]
-
-export type ThemeState = {
-  mode: "light" | "dark"
-  baseColor: ShadcnBaseColor
-}
-
-function parseStoredTheme(): ThemeState["mode"] {
+function parseStoredTheme(): "light" | "dark" {
   if (typeof document === "undefined") return "light"
   const stored = localStorage.getItem(STORAGE_KEY)
   if (stored === "dark" || stored === "light") return stored
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 }
 
-function parseStoredBaseColor(): ShadcnBaseColor {
-  if (typeof document === "undefined") return "neutral"
-  const stored = localStorage.getItem(STORAGE_KEY_BASE)
-  if (stored && SHADCN_BASE_COLORS.includes(stored as ShadcnBaseColor)) {
-    return stored as ShadcnBaseColor
-  }
-  return "neutral"
-}
-
-function applyTheme(root: HTMLElement, mode: "light" | "dark", baseColor: ShadcnBaseColor) {
+function applyTheme(root: HTMLElement, mode: "light" | "dark") {
   if (mode === "dark") {
     root.classList.add("dark")
   } else {
     root.classList.remove("dark")
   }
-  if (baseColor === "neutral") {
-    root.removeAttribute("data-base")
-  } else {
-    root.setAttribute("data-base", baseColor)
-  }
 }
 
 export function ThemeToggle() {
   const [mode, setMode] = useState<"light" | "dark">(parseStoredTheme)
-  const [baseColor] = useState<ShadcnBaseColor>(parseStoredBaseColor)
   const { state } = useSidebar()
   const collapsed = state === "collapsed"
 
   useEffect(() => {
     const root = document.documentElement
-    applyTheme(root, mode, baseColor)
+    applyTheme(root, mode)
     localStorage.setItem(STORAGE_KEY, mode)
-  }, [mode, baseColor])
+  }, [mode])
 
   const toggle = () => setMode((m) => (m === "dark" ? "light" : "dark"))
 
