@@ -36,3 +36,16 @@ L’app admin usa Supabase. Copia `admin/.env.example` in `admin/.env` e imposta
 - `VITE_SUPABASE_ANON_KEY`
 
 Client in `admin/src/lib/supabase.ts`.
+
+## Deploy Vercel (2 progetti)
+
+Repo GitHub: `https://github.com/luciogratani/g3modena`
+
+- **web**
+  - Build Command: `pnpm --filter web build`
+  - Output Directory: `web/dist`
+- **admin**
+  - Build Command: `pnpm --filter admin build`
+  - Output Directory: `admin/dist`
+
+Entrambi i progetti usano `Install Command: pnpm install --frozen-lockfile`.

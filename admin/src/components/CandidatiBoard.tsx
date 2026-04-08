@@ -181,6 +181,7 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: Candidate
     trainingNote,
     trainingSublanes,
     newColumnFilters,
+    newColumnFilterVisibility,
     rimandatiCandidates,
     archivioCandidates,
     setSheetOpen,
@@ -200,7 +201,9 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: Candidate
     handleDragEnd,
     clearActiveDrag,
     handleToggleNewColumnFilter,
+    handleSetAgeRange,
     handleToggleLanguageFilter,
+    handleToggleFilterVisibility,
     handleClearArchived,
     handleRestoreCandidate,
     handleRestoreArchivedCandidate,
@@ -220,7 +223,7 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: Candidate
     handleConfirmTrainingTransition,
     handleDailyRecapOpenChange,
     handleOpenRimandatiFromRecap,
-  } = useCandidateBoardState()
+  } = useCandidateBoardState(boardCity)
 
   return (
     <div className="relative flex h-full min-w-0 flex-col overflow-x-auto bg-background p-6">
@@ -241,9 +244,12 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: Candidate
                 candidates={getCandidatesByStatus(boardState, id)}
                 boardCity={boardCity}
                 filters={newColumnFilters}
+                filterVisibility={newColumnFilterVisibility}
                 trainingSublanes={id === "formazione" ? trainingSublanes : undefined}
                 onToggleFilter={handleToggleNewColumnFilter}
+                onSetAgeRange={handleSetAgeRange}
                 onToggleLanguageFilter={handleToggleLanguageFilter}
+                onToggleFilterVisibility={handleToggleFilterVisibility}
                 onOpenDetail={handleOpenDetail}
                 onScheduleInterview={handleRequestInterviewCandidate}
                 onPlanTraining={handleRequestTrainingCandidate}

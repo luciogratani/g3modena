@@ -3,6 +3,7 @@ import {
   CANDIDATES,
   KANBAN_COLUMNS,
   type Candidate,
+  type CandidateCity,
   type CandidateStatus,
   type TrainingSublaneType,
 } from "@/src/data/mockCandidates"
@@ -27,6 +28,10 @@ export type CandidateBoardPersistenceAdapter = {
 
 export type NewColumnFilters = {
   auto: boolean
+  eta: {
+    minAge: number | null
+    maxAge: number | null
+  }
   esperienza: boolean
   disponibilitaImmediata: boolean
   residenzaCittaBoard: boolean
@@ -37,13 +42,38 @@ export type NewColumnFilters = {
   }
 }
 
+export type NewColumnFilterVisibilityKey =
+  | "auto"
+  | "eta"
+  | "esperienza"
+  | "disponibilitaImmediata"
+  | "residenzaCittaBoard"
+  | "lingue"
+
+export type NewColumnFilterVisibility = Record<NewColumnFilterVisibilityKey, boolean>
+
 export const BOARD_STORAGE_KEY = "admin:candidates:board:v1"
+export const AGE_FILTER_DEFAULT_MIN = 18
+export const AGE_FILTER_DEFAULT_MAX = 60
+export const NEW_COLUMN_FILTER_VISIBILITY_STORAGE_PREFIX = "admin:candidates:new-column-filters:visibility:v1"
+export const DEFAULT_NEW_COLUMN_FILTER_VISIBILITY: NewColumnFilterVisibility = {
+  auto: true,
+  eta: true,
+  esperienza: false,
+  disponibilitaImmediata: false,
+  residenzaCittaBoard: false,
+  lingue: false,
+}
 export const MAIN_BOARD_STATUSES: CandidateStatus[] = [
   "nuovo",
   "colloquio",
   "formazione",
   "in_attesa",
 ]
+
+export function getNewColumnFilterVisibilityStorageKey(boardCity: CandidateCity): string {
+  return `${NEW_COLUMN_FILTER_VISIBILITY_STORAGE_PREFIX}:${boardCity}`
+}
 
 export function createEmptyColumns(): Record<CandidateStatus, string[]> {
   return {

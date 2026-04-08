@@ -405,6 +405,13 @@ export default function App() {
                         <span className="font-medium text-foreground shrink-0">Sidebar:</span>
                         <span>Usa l’icona in alto a sinistra per aprire o chiudere il menu laterale.</span>
                       </li>
+                      <li className="flex items-start gap-2">
+                        <span className="font-medium text-foreground shrink-0">Board:</span>
+                        <span>
+                          Nella colonna Nuovo, usa il tasto destro su un filtro per aprire le
+                          impostazioni filtri.
+                        </span>
+                      </li>
                     </ul>
                   </PopoverContent>
                 </Popover>

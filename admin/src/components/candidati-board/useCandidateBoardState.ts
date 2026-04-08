@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react"
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core"
 import {
+  AGE_FILTER_DEFAULT_MAX,
+  AGE_FILTER_DEFAULT_MIN,
   BOARD_STORAGE_KEY,
+  DEFAULT_NEW_COLUMN_FILTER_VISIBILITY,
   buildTrainingSublaneId,
   collectDuplicateCandidateIds,
   createInitialBoardState,
   findColumnByCandidateId,
+  getNewColumnFilterVisibilityStorageKey,
   getCandidatesByStatus,
   getCurrentCandidateStatus,
   localStorageBoardAdapter,
@@ -14,11 +18,14 @@ import {
   toDateKey,
   type CandidateBoardState,
   type NewColumnFilters,
+  type NewColumnFilterVisibility,
+  type NewColumnFilterVisibilityKey,
   type TrainingSublane,
 } from "@/src/components/candidati-board/board-utils"
 import {
   CANDIDATES,
   type Candidate,
+  type CandidateCity,
   type PostponeReturnStatus,
   type CandidateStatus,
   type TrainingSublaneType,
@@ -263,7 +270,31 @@ function getDayDiff(targetDate: Date, fromDate: Date): number {
   return Math.round(diffMs / (1000 * 60 * 60 * 24))
 }
 
-export function useCandidateBoardState() {
+function parseFilterVisibilityStorage(rawValue: string | null): NewColumnFilterVisibility {
+  if (!rawValue) return { ...DEFAULT_NEW_COLUMN_FILTER_VISIBILITY }
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<NewColumnFilterVisibility>
+    const defaults = DEFAULT_NEW_COLUMN_FILTER_VISIBILITY
+    return {
+      auto: typeof parsed.auto === "boolean" ? parsed.auto : defaults.auto,
+      eta: typeof parsed.eta === "boolean" ? parsed.eta : defaults.eta,
+      esperienza: typeof parsed.esperienza === "boolean" ? parsed.esperienza : defaults.esperienza,
+      disponibilitaImmediata:
+        typeof parsed.disponibilitaImmediata === "boolean"
+          ? parsed.disponibilitaImmediata
+          : defaults.disponibilitaImmediata,
+      residenzaCittaBoard:
+        typeof parsed.residenzaCittaBoard === "boolean"
+          ? parsed.residenzaCittaBoard
+          : defaults.residenzaCittaBoard,
+      lingue: typeof parsed.lingue === "boolean" ? parsed.lingue : defaults.lingue,
+    }
+  } catch {
+    return { ...DEFAULT_NEW_COLUMN_FILTER_VISIBILITY }
+  }
+}
+
+export function useCandidateBoardState(boardCity: CandidateCity = "modena") {
   const [boardState, setBoardState] = useState<CandidateBoardState>(() =>
     createInitialBoardState(CANDIDATES),
   )
@@ -295,6 +326,10 @@ export function useCandidateBoardState() {
   const [trainingNote, setTrainingNote] = useState("")
   const [newColumnFilters, setNewColumnFilters] = useState<NewColumnFilters>({
     auto: false,
+    eta: {
+      minAge: AGE_FILTER_DEFAULT_MIN,
+      maxAge: AGE_FILTER_DEFAULT_MAX,
+    },
     esperienza: false,
     disponibilitaImmediata: false,
     residenzaCittaBoard: false,
@@ -304,12 +339,28 @@ export function useCandidateBoardState() {
       altro: false,
     },
   })
+  const [newColumnFilterVisibility, setNewColumnFilterVisibility] = useState<NewColumnFilterVisibility>(
+    () => ({ ...DEFAULT_NEW_COLUMN_FILTER_VISIBILITY }),
+  )
 
   useEffect(() => {
     const persistedState = localStorageBoardAdapter.load(CANDIDATES)
     if (persistedState) setBoardState(persistedState)
     setHydrated(true)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const storageKey = getNewColumnFilterVisibilityStorageKey(boardCity)
+    const persistedVisibility = parseFilterVisibilityStorage(localStorage.getItem(storageKey))
+    setNewColumnFilterVisibility(persistedVisibility)
+  }, [boardCity])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const storageKey = getNewColumnFilterVisibilityStorageKey(boardCity)
+    localStorage.setItem(storageKey, JSON.stringify(newColumnFilterVisibility))
+  }, [boardCity, newColumnFilterVisibility])
 
   useEffect(() => {
     if (!hydrated) return
@@ -472,6 +523,40 @@ export function useCandidateBoardState() {
         [languageKey]: !currentFilters.lingueParlate[languageKey],
       },
     }))
+  }
+
+  function handleSetAgeRange(ageRange: { minAge: number | null; maxAge: number | null }) {
+    setNewColumnFilters((currentFilters) => ({
+      ...currentFilters,
+      eta: {
+        ...currentFilters.eta,
+        minAge: ageRange.minAge,
+        maxAge: ageRange.maxAge,
+      },
+    }))
+  }
+
+  function handleToggleFilterVisibility(filterKey: NewColumnFilterVisibilityKey) {
+    setNewColumnFilterVisibility((currentVisibility) => {
+      const isLastVisibleFilter = currentVisibility[filterKey] && Object.values(currentVisibility).filter(Boolean).length === 1
+      const nextValue = isLastVisibleFilter ? true : !currentVisibility[filterKey]
+      const nextVisibility = {
+        ...currentVisibility,
+        [filterKey]: nextValue,
+      }
+
+      if (filterKey === "eta" && !nextValue) {
+        setNewColumnFilters((currentFilters) => ({
+          ...currentFilters,
+          eta: {
+            minAge: AGE_FILTER_DEFAULT_MIN,
+            maxAge: AGE_FILTER_DEFAULT_MAX,
+          },
+        }))
+      }
+
+      return nextVisibility
+    })
   }
 
   function handleClearArchived() {
@@ -948,6 +1033,7 @@ export function useCandidateBoardState() {
     trainingNote,
     trainingSublanes: boardState.trainingSublanes,
     newColumnFilters,
+    newColumnFilterVisibility,
     rimandatiCandidates,
     archivioCandidates,
     setSheetOpen,
@@ -970,7 +1056,9 @@ export function useCandidateBoardState() {
       setActiveOverStatus(null)
     },
     handleToggleNewColumnFilter,
+    handleSetAgeRange,
     handleToggleLanguageFilter,
+    handleToggleFilterVisibility,
     handleClearArchived,
     handleRestoreCandidate,
     handleRestoreArchivedCandidate,

@@ -87,7 +87,7 @@ const educationOptions = [
   "Master",
   "Altro",
 ]
-const languageOptions = ["Inglese", "Francese", "Spagnolo", "Tedesco", "Altro"]
+const languageOptions = ["Italiano", "Inglese", "Francese", "Spagnolo", "Tedesco", "Altro"]
 const maxProfilePhotoSizeBytes = 5 * 1024 * 1024
 const maxCvSizeBytes = 10 * 1024 * 1024
 const allowFreeStepNavigation =
@@ -791,7 +791,7 @@ export function CareersForm() {
                       </PopoverContent>
                     </Popover>
                     <label className="pointer-events-none absolute left-0 top-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground/70">
-                      Parli qualche lingua straniera?
+                      Quali lingue parli?
                     </label>
                   </div>
                   <p
@@ -989,7 +989,7 @@ export function CareersForm() {
                       className={`${inputClasses} resize-none`}
                     />
                     <label htmlFor="career-jobAttraction" className={floatingLabelClasses}>
-                      Cosa ti attira di questo lavoro? *
+                      Cosa ti attira di questo lavoro?
                     </label>
                   </div>
                   <p

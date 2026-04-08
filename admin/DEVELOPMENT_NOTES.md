@@ -22,6 +22,10 @@ Implementato (mock coerente):
 - [x] aggiunto blocco `Pipeline candidature per citta`:
   - confronto `Modena` / `Sassari` su stati `Nuovo`, `Colloquio`, `Formazione`.
 - [x] aggiornate le KPI card top con valori demo piu realistici per presentazione.
+- [x] stabilizzato hover grafici per demo:
+  - tooltip chart con `cursor={false}` e `isAnimationActive={false}` per evitare transizioni incerte tra barre/serie.
+- [x] pulizia microcopy client-facing:
+  - rimossi testi troppo developer-oriented da Dashboard, Inbox messaggi, CMS editor, SEO, Impostazioni e dialog board.
 
 ### 1) Board candidature (`CandidatiBoard`)
 
