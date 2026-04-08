@@ -131,8 +131,11 @@ function getStepErrors(
       newErrors.age = "L'età è obbligatoria"
     } else {
       const age = Number.parseInt(ageRaw, 10)
-      if (Number.isNaN(age) || age < 16 || age > 99) {
+      const isTwoDigitNumber = /^\d{2}$/.test(ageRaw)
+      if (!isTwoDigitNumber || Number.isNaN(age) || age > 99) {
         newErrors.age = "Età non valida"
+      } else if (age < 18) {
+        newErrors.age = "Età non consentita"
       }
     }
 
@@ -185,6 +188,12 @@ function getStepErrors(
     }
     if (!formData.hasRelevantExperience) {
       newErrors.hasRelevantExperience = "Seleziona una risposta"
+    }
+  }
+
+  if (step === 3) {
+    if (!formData.jobAttraction.trim()) {
+      newErrors.jobAttraction = "Questo campo è obbligatorio"
     }
   }
 
@@ -980,7 +989,7 @@ export function CareersForm() {
                       className={`${inputClasses} resize-none`}
                     />
                     <label htmlFor="career-jobAttraction" className={floatingLabelClasses}>
-                      Cosa ti attira di questo lavoro? (facoltativo)
+                      Cosa ti attira di questo lavoro? *
                     </label>
                   </div>
                   <p
