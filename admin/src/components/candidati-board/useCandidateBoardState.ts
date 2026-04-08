@@ -9,6 +9,7 @@ import {
   collectDuplicateCandidateIds,
   createInitialBoardState,
   findColumnByCandidateId,
+  getNewColumnFiltersStorageKey,
   getNewColumnFilterVisibilityStorageKey,
   getCandidatesByStatus,
   getCurrentCandidateStatus,
@@ -294,6 +295,63 @@ function parseFilterVisibilityStorage(rawValue: string | null): NewColumnFilterV
   }
 }
 
+function getDefaultNewColumnFilters(): NewColumnFilters {
+  return {
+    auto: false,
+    eta: {
+      minAge: AGE_FILTER_DEFAULT_MIN,
+      maxAge: AGE_FILTER_DEFAULT_MAX,
+    },
+    esperienza: false,
+    disponibilitaImmediata: false,
+    residenzaCittaBoard: false,
+    lingueParlate: {
+      italiano: false,
+      inglese: false,
+      altro: false,
+    },
+  }
+}
+
+function parseColumnFiltersStorage(rawValue: string | null): NewColumnFilters {
+  if (!rawValue) return getDefaultNewColumnFilters()
+  const defaults = getDefaultNewColumnFilters()
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<NewColumnFilters>
+    const minAge = parsed.eta?.minAge
+    const maxAge = parsed.eta?.maxAge
+    return {
+      auto: Boolean(parsed.auto),
+      eta: {
+        minAge: typeof minAge === "number" ? minAge : defaults.eta.minAge,
+        maxAge: typeof maxAge === "number" ? maxAge : defaults.eta.maxAge,
+      },
+      esperienza: Boolean(parsed.esperienza),
+      disponibilitaImmediata: Boolean(parsed.disponibilitaImmediata),
+      residenzaCittaBoard: Boolean(parsed.residenzaCittaBoard),
+      lingueParlate: {
+        italiano: Boolean(parsed.lingueParlate?.italiano),
+        inglese: Boolean(parsed.lingueParlate?.inglese),
+        altro: Boolean(parsed.lingueParlate?.altro),
+      },
+    }
+  } catch {
+    return defaults
+  }
+}
+
+function loadColumnFiltersForCity(boardCity: CandidateCity): NewColumnFilters {
+  if (typeof window === "undefined") return getDefaultNewColumnFilters()
+  const storageKey = getNewColumnFiltersStorageKey(boardCity)
+  return parseColumnFiltersStorage(localStorage.getItem(storageKey))
+}
+
+function loadFilterVisibilityForCity(boardCity: CandidateCity): NewColumnFilterVisibility {
+  if (typeof window === "undefined") return { ...DEFAULT_NEW_COLUMN_FILTER_VISIBILITY }
+  const storageKey = getNewColumnFilterVisibilityStorageKey(boardCity)
+  return parseFilterVisibilityStorage(localStorage.getItem(storageKey))
+}
+
 export function useCandidateBoardState(boardCity: CandidateCity = "modena") {
   const [boardState, setBoardState] = useState<CandidateBoardState>(() =>
     createInitialBoardState(CANDIDATES),
@@ -324,23 +382,9 @@ export function useCandidateBoardState(boardCity: CandidateCity = "modena") {
   const [trainingPhase, setTrainingPhase] = useState<TrainingSublaneType>("teoria")
   const [trainingDate, setTrainingDate] = useState("")
   const [trainingNote, setTrainingNote] = useState("")
-  const [newColumnFilters, setNewColumnFilters] = useState<NewColumnFilters>({
-    auto: false,
-    eta: {
-      minAge: AGE_FILTER_DEFAULT_MIN,
-      maxAge: AGE_FILTER_DEFAULT_MAX,
-    },
-    esperienza: false,
-    disponibilitaImmediata: false,
-    residenzaCittaBoard: false,
-    lingueParlate: {
-      italiano: false,
-      inglese: false,
-      altro: false,
-    },
-  })
+  const [newColumnFilters, setNewColumnFilters] = useState<NewColumnFilters>(() => loadColumnFiltersForCity(boardCity))
   const [newColumnFilterVisibility, setNewColumnFilterVisibility] = useState<NewColumnFilterVisibility>(
-    () => ({ ...DEFAULT_NEW_COLUMN_FILTER_VISIBILITY }),
+    () => loadFilterVisibilityForCity(boardCity),
   )
 
   useEffect(() => {
@@ -351,10 +395,15 @@ export function useCandidateBoardState(boardCity: CandidateCity = "modena") {
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    const storageKey = getNewColumnFilterVisibilityStorageKey(boardCity)
-    const persistedVisibility = parseFilterVisibilityStorage(localStorage.getItem(storageKey))
-    setNewColumnFilterVisibility(persistedVisibility)
+    setNewColumnFilters(loadColumnFiltersForCity(boardCity))
+    setNewColumnFilterVisibility(loadFilterVisibilityForCity(boardCity))
   }, [boardCity])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const filtersStorageKey = getNewColumnFiltersStorageKey(boardCity)
+    localStorage.setItem(filtersStorageKey, JSON.stringify(newColumnFilters))
+  }, [boardCity, newColumnFilters])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -545,14 +594,40 @@ export function useCandidateBoardState(boardCity: CandidateCity = "modena") {
         [filterKey]: nextValue,
       }
 
-      if (filterKey === "eta" && !nextValue) {
-        setNewColumnFilters((currentFilters) => ({
-          ...currentFilters,
-          eta: {
-            minAge: AGE_FILTER_DEFAULT_MIN,
-            maxAge: AGE_FILTER_DEFAULT_MAX,
-          },
-        }))
+      if (!nextValue) {
+        setNewColumnFilters((currentFilters) => {
+          if (filterKey === "eta") {
+            return {
+              ...currentFilters,
+              eta: {
+                minAge: AGE_FILTER_DEFAULT_MIN,
+                maxAge: AGE_FILTER_DEFAULT_MAX,
+              },
+            }
+          }
+          if (filterKey === "lingue") {
+            return {
+              ...currentFilters,
+              lingueParlate: {
+                italiano: false,
+                inglese: false,
+                altro: false,
+              },
+            }
+          }
+          if (
+            filterKey === "auto" ||
+            filterKey === "esperienza" ||
+            filterKey === "disponibilitaImmediata" ||
+            filterKey === "residenzaCittaBoard"
+          ) {
+            return {
+              ...currentFilters,
+              [filterKey]: false,
+            }
+          }
+          return currentFilters
+        })
       }
 
       return nextVisibility

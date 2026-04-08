@@ -114,11 +114,27 @@ Implementato:
   - comportamento confermato: trascinamento in colonna `Formazione` apre il dialog classico di pianificazione;
   - supportato anche drag&drop diretto in sub-lane esistenti (`Teoria`/`Pratica`) per assegnazione rapida;
   - le sub-lane non sono ordinabili come card (evita conflitti di movimento verticale e drop ambiguo).
+- [x] Filtri colonna `Nuovo` evoluti:
+  - aggiunto filtro `Eta` con range custom (`18-60`) tramite slider;
+  - filtro `Eta` attivo automaticamente solo quando il range differisce dal default (`18-60`);
+  - introdotta personalizzazione visibilita filtri toolbar (`auto`, `eta`, `esperienza`, `disponibilita`, `residenza`, `lingue`);
+  - default visibilita: solo `auto` + `eta`.
+- [x] UX filtri toolbar (hardening):
+  - impostazioni filtri apribili con tasto destro sui filtri della colonna `Nuovo`;
+  - hint centralizzato nel menu `Aiuto` della topbar (`Board`) per evitare testo ripetuto su ogni tooltip;
+  - icona filtro lingue aggiornata per maggior chiarezza visiva.
+- [x] Persistenza filtri `Nuovo` (per citta board):
+  - aggiunta persistenza localStorage per visibilita filtri e stato filtri (non solo board columns);
+  - storage separato per `modena`/`sassari` con chiavi dedicate:
+    - `admin:candidates:new-column-filters:visibility:v1:<city>`
+    - `admin:candidates:new-column-filters:state:v1:<city>`
+  - al nascondimento di un filtro viene resettato anche il suo stato attivo (evita filtri invisibili ma applicati).
 
 Da completare (board):
 - [x] Consolidare editing completo metadati workflow direttamente nello sheet (modifica inline su colloquio/formazione/rimando).
 - [x] Transizioni assistite drag&drop: dialog contestuali su drop in `colloquio`/`formazione`/`in_attesa`.
 - [x] Colonna Formazione evoluta - step iniziale: sub-lane dinamiche con assegnazione via dialog/drop.
+- [ ] Refactor tecnico board: spezzare `useCandidateBoardState` e `KanbanColumn` in moduli piu piccoli (stato filtri/persistenza/dialog/recap separati).
 - [ ] Migrare persistenza da localStorage a Supabase quando il backend e pronto.
 
 ### 2) CMS Admin -> Web
@@ -223,6 +239,7 @@ Decisione di rollout:
 - **Board status policy**: lo stato candidatura a runtime e derivato dalla colonna corrente (single source of truth).
 - **Date handling policy**: no `new Date(...)` inline nei render per campi input esterni; usare helper safe + fallback UI.
 - **Persistence policy (board attuale)**: board + sub-lane formazione persistono in localStorage (schema versionato), quindi non sono cross-device finche non viene completato wiring Supabase.
+- **Filters policy (colonna Nuovo)**: i filtri sono persistenti per citta board; un filtro nascosto viene anche disattivato/reset per coerenza UX.
 - **Contract policy**: nuove key sezione/toggle vanno aggiunte prima in `@g3/content-contract`, poi in admin/web.
 - **Auth policy**: fuori scope attuale; verra introdotta insieme al wiring Supabase reale.
 

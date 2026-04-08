@@ -56,6 +56,7 @@ export const BOARD_STORAGE_KEY = "admin:candidates:board:v1"
 export const AGE_FILTER_DEFAULT_MIN = 18
 export const AGE_FILTER_DEFAULT_MAX = 60
 export const NEW_COLUMN_FILTER_VISIBILITY_STORAGE_PREFIX = "admin:candidates:new-column-filters:visibility:v1"
+export const NEW_COLUMN_FILTERS_STORAGE_PREFIX = "admin:candidates:new-column-filters:state:v1"
 export const DEFAULT_NEW_COLUMN_FILTER_VISIBILITY: NewColumnFilterVisibility = {
   auto: true,
   eta: true,
@@ -73,6 +74,10 @@ export const MAIN_BOARD_STATUSES: CandidateStatus[] = [
 
 export function getNewColumnFilterVisibilityStorageKey(boardCity: CandidateCity): string {
   return `${NEW_COLUMN_FILTER_VISIBILITY_STORAGE_PREFIX}:${boardCity}`
+}
+
+export function getNewColumnFiltersStorageKey(boardCity: CandidateCity): string {
+  return `${NEW_COLUMN_FILTERS_STORAGE_PREFIX}:${boardCity}`
 }
 
 export function createEmptyColumns(): Record<CandidateStatus, string[]> {
