@@ -38,7 +38,7 @@ export function HeroSectionEditor({
           </Badge>
         </div>
 
-        <div className="overflow-hidden rounded-md border bg-muted/30">
+        <div className="overflow-hidden rounded-md border bg-muted/30 max-w-md">
           {value.mediaSrc ? (
             value.mediaType === "video" ? (
               <video key={value.mediaSrc} src={value.mediaSrc} controls className="aspect-video w-full object-cover" />
