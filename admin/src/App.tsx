@@ -210,42 +210,6 @@ export default function App() {
               <Collapsible defaultOpen className="group/collapsible">
                 <CollapsibleTrigger asChild>
                   <SidebarGroupLabel className="flex cursor-pointer items-center justify-between gap-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-                    <span>Camerieri</span>
-                    <ChevronDown className="shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                  </SidebarGroupLabel>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={page === "modenaWaiters"}
-                          tooltip="Camerieri Modena"
-                          onClick={() => setPage("modenaWaiters")}
-                        >
-                          <Users />
-                          <span>Modena</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={page === "sassariWaiters"}
-                          tooltip="Camerieri Sassari"
-                          onClick={() => setPage("sassariWaiters")}
-                        >
-                          <Users />
-                          <span>Sassari</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </CollapsibleContent>
-              </Collapsible>
-            </SidebarGroup>
-            <SidebarGroup>
-              <Collapsible defaultOpen className="group/collapsible">
-                <CollapsibleTrigger asChild>
-                  <SidebarGroupLabel className="flex cursor-pointer items-center justify-between gap-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                     <span>Dashboard</span>
                     <ChevronDown className="shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                   </SidebarGroupLabel>
@@ -307,6 +271,42 @@ export default function App() {
                         >
                           <Search />
                           <span>SEO</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </SidebarGroup>
+            <SidebarGroup>
+              <Collapsible defaultOpen className="group/collapsible">
+                <CollapsibleTrigger asChild>
+                  <SidebarGroupLabel className="flex cursor-pointer items-center justify-between gap-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                    <span>Camerieri</span>
+                    <ChevronDown className="shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                  </SidebarGroupLabel>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={page === "modenaWaiters"}
+                          tooltip="Camerieri Modena"
+                          onClick={() => setPage("modenaWaiters")}
+                        >
+                          <Users />
+                          <span>Modena</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={page === "sassariWaiters"}
+                          tooltip="Camerieri Sassari"
+                          onClick={() => setPage("sassariWaiters")}
+                        >
+                          <Users />
+                          <span>Sassari</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     </SidebarMenu>
