@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Phone,
   Reply,
+  Users,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -42,6 +43,7 @@ type CandidateCardProps = {
   onPlanTraining: (candidateId: string) => void
   onPostpone: (candidateId: string) => void
   onArchive: (candidateId: string) => void
+  onPromoteToWaiter: (candidateId: string) => void
 }
 
 export function CandidateCard({
@@ -52,6 +54,7 @@ export function CandidateCard({
   onPlanTraining,
   onPostpone,
   onArchive,
+  onPromoteToWaiter,
 }: CandidateCardProps) {
   const [sideImageFailed, setSideImageFailed] = useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -224,6 +227,11 @@ export function CandidateCard({
         <ContextMenuItem className="flex items-center gap-2" onSelect={() => onPostpone(candidate.id)}>
           <Reply className="size-4" />
           Rimanda
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem className="flex items-center gap-2" onSelect={() => onPromoteToWaiter(candidate.id)}>
+          <Users className="size-4" />
+          Promuovi a Cameriere
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem className="flex items-center gap-2" onSelect={() => onArchive(candidate.id)}>

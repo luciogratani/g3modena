@@ -1,12 +1,18 @@
-import { useMemo, useState } from "react"
+/**
+ * Board column renderer.
+ *
+ * Responsibilities:
+ * - applies "Nuovo" filters before rendering cards;
+ * - renders shared column header counters;
+ * - renders specialized "Formazione" sections (unassigned buckets + sub-lanes).
+ *
+ * Note:
+ * - "Nuovo" toolbar UI is intentionally delegated to `NuovoFiltersToolbar`.
+ */
+import { useMemo } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
-import { Award, Car, Languages, MapPin, Filter, Zap } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Slider } from "@/components/ui/slider"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Candidate, CandidateCity, CandidateStatus } from "@/src/data/mockCandidates"
 import { cn } from "@/lib/utils"
 import {
@@ -20,6 +26,7 @@ import {
 import { getAgeFromBirthYear } from "./candidate-utils"
 import { CandidateCard } from "./CandidateCard"
 import { formatCandidateDate, getInAttesaCounterClassName } from "./date-utils"
+import { NuovoFiltersToolbar } from "./NuovoFiltersToolbar"
 
 type KanbanColumnProps = {
   label: string
@@ -38,6 +45,7 @@ type KanbanColumnProps = {
   onPlanTraining: (candidateId: string) => void
   onPostpone: (candidateId: string) => void
   onArchive: (candidateId: string) => void
+  onPromoteToWaiter: (candidateId: string) => void
   postponeReminderCounts?: {
     overdueCount: number
     dueTodayCount: number
@@ -108,6 +116,7 @@ function CandidateList({
   onPlanTraining,
   onPostpone,
   onArchive,
+  onPromoteToWaiter,
 }: {
   status: CandidateStatus
   candidates: Candidate[]
@@ -116,6 +125,7 @@ function CandidateList({
   onPlanTraining: (candidateId: string) => void
   onPostpone: (candidateId: string) => void
   onArchive: (candidateId: string) => void
+  onPromoteToWaiter: (candidateId: string) => void
 }) {
   const sortableIds = useMemo(() => candidates.map((candidate) => candidate.id), [candidates])
   return (
@@ -131,6 +141,7 @@ function CandidateList({
             onPlanTraining={onPlanTraining}
             onPostpone={onPostpone}
             onArchive={onArchive}
+            onPromoteToWaiter={onPromoteToWaiter}
           />
         ))}
       </div>
@@ -146,6 +157,7 @@ function FormazioneSublane({
   onPlanTraining,
   onPostpone,
   onArchive,
+  onPromoteToWaiter,
 }: {
   lane: TrainingSublane
   candidates: Candidate[]
@@ -154,6 +166,7 @@ function FormazioneSublane({
   onPlanTraining: (candidateId: string) => void
   onPostpone: (candidateId: string) => void
   onArchive: (candidateId: string) => void
+  onPromoteToWaiter: (candidateId: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `training-lane-${lane.id}` })
   const isTeoriaLane = lane.type === "teoria"
@@ -191,6 +204,7 @@ function FormazioneSublane({
           onPlanTraining={onPlanTraining}
           onPostpone={onPostpone}
           onArchive={onArchive}
+          onPromoteToWaiter={onPromoteToWaiter}
         />
       )}
     </section>
@@ -214,40 +228,11 @@ export function KanbanColumn({
   onPlanTraining,
   onPostpone,
   onArchive,
+  onPromoteToWaiter,
   postponeReminderCounts,
   trainingTodayCount,
   dragMode = false,
 }: KanbanColumnProps) {
-  const [filterSettingsOpen, setFilterSettingsOpen] = useState(false)
-  const showLanguageFilter = filterVisibility.lingue
-  const isLanguageFilterActive = Object.values(filters.lingueParlate).some(Boolean)
-  const selectedMinAge = typeof filters.eta.minAge === "number" ? filters.eta.minAge : MIN_FILTER_AGE
-  const selectedMaxAge = typeof filters.eta.maxAge === "number" ? filters.eta.maxAge : MAX_FILTER_AGE
-  const isAgeFilterActive = selectedMinAge !== MIN_FILTER_AGE || selectedMaxAge !== MAX_FILTER_AGE
-
-  function handleAgeMinChange(values: number[]) {
-    const nextMinAge = values[0]
-    if (typeof nextMinAge !== "number") return
-    onSetAgeRange({
-      minAge: nextMinAge,
-      maxAge: filters.eta.maxAge,
-    })
-  }
-
-  function handleAgeMaxChange(values: number[]) {
-    const nextMaxAge = values[0]
-    if (typeof nextMaxAge !== "number") return
-    onSetAgeRange({
-      minAge: filters.eta.minAge,
-      maxAge: nextMaxAge,
-    })
-  }
-
-  function handleFilterSettingsContextMenu(event: { preventDefault: () => void }) {
-    event.preventDefault()
-    setFilterSettingsOpen(true)
-  }
-
   const visibleCandidates = useMemo(
     () => (status === "nuovo" ? applyNewColumnFilters(candidates, filters, boardCity) : candidates),
     [status, candidates, filters, boardCity],
@@ -305,239 +290,14 @@ export function KanbanColumn({
         <h3 className="font-semibold text-foreground">{label}</h3>
         <div className="ml-auto flex items-center gap-1">
           {status === "nuovo" && (
-            <TooltipProvider>
-              <div className="flex items-center gap-1 pr-1">
-                <Popover open={filterSettingsOpen} onOpenChange={setFilterSettingsOpen}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className="pointer-events-none absolute left-3 top-3 size-0 opacity-0"
-                      aria-hidden="true"
-                      tabIndex={-1}
-                    />
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 space-y-4 p-3" align="start">
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">Mostra in toolbar</p>
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={filterVisibility.auto} onCheckedChange={() => onToggleFilterVisibility("auto")} />
-                        Candidati con auto
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={filterVisibility.eta} onCheckedChange={() => onToggleFilterVisibility("eta")} />
-                        Età
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={filterVisibility.esperienza}
-                          onCheckedChange={() => onToggleFilterVisibility("esperienza")}
-                        />
-                        Esperienza
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={filterVisibility.disponibilitaImmediata}
-                          onCheckedChange={() => onToggleFilterVisibility("disponibilitaImmediata")}
-                        />
-                        Disponibilità immediata
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={filterVisibility.residenzaCittaBoard}
-                          onCheckedChange={() => onToggleFilterVisibility("residenzaCittaBoard")}
-                        />
-                        Residenza città board
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={filterVisibility.lingue} onCheckedChange={() => onToggleFilterVisibility("lingue")} />
-                        Lingue
-                      </label>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                {filterVisibility.auto ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          "rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                          filters.auto && "bg-accent text-foreground",
-                        )}
-                        onClick={() => onToggleFilter("auto")}
-                        onContextMenu={handleFilterSettingsContextMenu}
-                        aria-label="Filtra candidati con auto"
-                      >
-                        <Car className="size-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>Candidati con auto</TooltipContent>
-                  </Tooltip>
-                ) : null}
-                {filterVisibility.eta ? (
-                  <Popover>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className={cn(
-                              "rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                              isAgeFilterActive && "bg-accent text-foreground",
-                            )}
-                            onContextMenu={handleFilterSettingsContextMenu}
-                            aria-label="Filtra per età"
-                          >
-                            <Filter className="size-4" />
-                          </button>
-                        </PopoverTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>Filtro età</TooltipContent>
-                    </Tooltip>
-                    <PopoverContent className="w-72 space-y-4 p-3" align="end">
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Età minima</span>
-                            <span>{selectedMinAge}</span>
-                          </div>
-                          <Slider
-                            value={[selectedMinAge]}
-                            min={MIN_FILTER_AGE}
-                            max={MAX_FILTER_AGE}
-                            step={1}
-                            onValueChange={handleAgeMinChange}
-                            aria-label="Età minima"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Età massima</span>
-                            <span>{selectedMaxAge}</span>
-                          </div>
-                          <Slider
-                            value={[selectedMaxAge]}
-                            min={MIN_FILTER_AGE}
-                            max={MAX_FILTER_AGE}
-                            step={1}
-                            onValueChange={handleAgeMaxChange}
-                            aria-label="Età massima"
-                          />
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Attivo solo quando il range è diverso da {MIN_FILTER_AGE}-{MAX_FILTER_AGE}.
-                      </p>
-                    </PopoverContent>
-                  </Popover>
-                ) : null}
-                {filterVisibility.esperienza ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          "rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                          filters.esperienza && "bg-accent text-foreground",
-                        )}
-                        onClick={() => onToggleFilter("esperienza")}
-                        onContextMenu={handleFilterSettingsContextMenu}
-                        aria-label="Filtra candidati con esperienza"
-                      >
-                        <Award className="size-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>Candidati con esperienza</TooltipContent>
-                  </Tooltip>
-                ) : null}
-                {filterVisibility.disponibilitaImmediata ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          "rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                          filters.disponibilitaImmediata && "bg-accent text-foreground",
-                        )}
-                        onClick={() => onToggleFilter("disponibilitaImmediata")}
-                        onContextMenu={handleFilterSettingsContextMenu}
-                        aria-label="Filtra candidati con disponibilita immediata"
-                      >
-                        <Zap className="size-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>Disponibilita immediata</TooltipContent>
-                  </Tooltip>
-                ) : null}
-                {filterVisibility.residenzaCittaBoard ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          "rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                          filters.residenzaCittaBoard && "bg-accent text-foreground",
-                        )}
-                        onClick={() => onToggleFilter("residenzaCittaBoard")}
-                        onContextMenu={handleFilterSettingsContextMenu}
-                        aria-label="Filtra residenti nella citta della board"
-                      >
-                        <MapPin className="size-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>Residenti nella citta della board</TooltipContent>
-                  </Tooltip>
-                ) : null}
-                {showLanguageFilter && (
-                  <Popover>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className={cn(
-                              "rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
-                              isLanguageFilterActive && "bg-accent text-foreground",
-                            )}
-                            onContextMenu={handleFilterSettingsContextMenu}
-                            aria-label="Filtra per lingue parlate"
-                          >
-                            <Languages className="size-4" />
-                          </button>
-                        </PopoverTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent>Filtra per lingue parlate</TooltipContent>
-                    </Tooltip>
-                    <PopoverContent className="w-48 p-3" align="end">
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium text-muted-foreground">Lingue</p>
-                        <label className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={filters.lingueParlate.italiano}
-                            onCheckedChange={() => onToggleLanguageFilter("italiano")}
-                          />
-                          Italiano
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={filters.lingueParlate.inglese}
-                            onCheckedChange={() => onToggleLanguageFilter("inglese")}
-                          />
-                          Inglese
-                        </label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={filters.lingueParlate.altro}
-                            onCheckedChange={() => onToggleLanguageFilter("altro")}
-                          />
-                          Altro
-                        </label>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                )}
-              </div>
-            </TooltipProvider>
+            <NuovoFiltersToolbar
+              filters={filters}
+              filterVisibility={filterVisibility}
+              onToggleFilter={onToggleFilter}
+              onSetAgeRange={onSetAgeRange}
+              onToggleLanguageFilter={onToggleLanguageFilter}
+              onToggleFilterVisibility={onToggleFilterVisibility}
+            />
           )}
           <Badge
             variant="secondary"
@@ -579,6 +339,7 @@ export function KanbanColumn({
               onPlanTraining={onPlanTraining}
               onPostpone={onPostpone}
               onArchive={onArchive}
+              onPromoteToWaiter={onPromoteToWaiter}
             />
             {candidates.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nessun elemento</p>}
           </div>
@@ -615,6 +376,7 @@ export function KanbanColumn({
                   onPlanTraining={onPlanTraining}
                   onPostpone={onPostpone}
                   onArchive={onArchive}
+                  onPromoteToWaiter={onPromoteToWaiter}
                 />
               </section>
             ) : null}
@@ -637,6 +399,7 @@ export function KanbanColumn({
                   onPlanTraining={onPlanTraining}
                   onPostpone={onPostpone}
                   onArchive={onArchive}
+                  onPromoteToWaiter={onPromoteToWaiter}
                 />
               </section>
             ) : null}
@@ -651,6 +414,7 @@ export function KanbanColumn({
                 onPlanTraining={onPlanTraining}
                 onPostpone={onPostpone}
                 onArchive={onArchive}
+                onPromoteToWaiter={onPromoteToWaiter}
               />
             ))}
 

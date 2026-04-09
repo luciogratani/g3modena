@@ -12,6 +12,7 @@
     "dev:admin": "pnpm --filter admin dev",
     "build:web": "pnpm --filter web build",
     "build:admin": "pnpm --filter admin build",
-    "build": "pnpm -r run build"
+    "build": "pnpm -r run build",
+    "test:board": "pnpm --filter admin test:board"
   }
 }

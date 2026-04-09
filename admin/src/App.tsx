@@ -38,6 +38,7 @@ import {
 } from "./components/contact-messages/storage"
 import { Dashboard } from "./components/Dashboard"
 import { CandidatiBoard } from "./components/CandidatiBoard"
+import { CamerieriPage } from "./components/camerieri/CamerieriPage"
 import { SettingsPage } from "./components/SettingsPage"
 import { SeoSettingsPage } from "./components/SeoSettingsPage"
 import { CANDIDATES } from "./data/mockCandidates"
@@ -57,6 +58,8 @@ type Page =
   | "seo"
   | "modenaBoard"
   | "sassariBoard"
+  | "modenaWaiters"
+  | "sassariWaiters"
   | "contactForm"
   | "settings"
 
@@ -67,6 +70,8 @@ const PAGE_TITLES: Record<Page, string> = {
   seo: "CMS › SEO",
   modenaBoard: "Candidati › Modena › Board",
   sassariBoard: "Candidati › Sassari › Board",
+  modenaWaiters: "Camerieri › Modena",
+  sassariWaiters: "Camerieri › Sassari",
   contactForm: "Contatti › Messaggi",
   settings: "Config › Impostazioni",
 }
@@ -162,6 +167,10 @@ export default function App() {
         return <CandidatiBoard boardCity="sassari" />
       case "contactForm":
         return <GestionaleContatti />
+      case "modenaWaiters":
+        return <CamerieriPage city="modena" />
+      case "sassariWaiters":
+        return <CamerieriPage city="sassari" />
       case "settings":
         return (
           <SettingsPage
@@ -197,6 +206,42 @@ export default function App() {
             </div>
           </SidebarHeader>
           <SidebarContent className="">
+            <SidebarGroup>
+              <Collapsible defaultOpen className="group/collapsible">
+                <CollapsibleTrigger asChild>
+                  <SidebarGroupLabel className="flex cursor-pointer items-center justify-between gap-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                    <span>Camerieri</span>
+                    <ChevronDown className="shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                  </SidebarGroupLabel>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={page === "modenaWaiters"}
+                          tooltip="Camerieri Modena"
+                          onClick={() => setPage("modenaWaiters")}
+                        >
+                          <Users />
+                          <span>Modena</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={page === "sassariWaiters"}
+                          tooltip="Camerieri Sassari"
+                          onClick={() => setPage("sassariWaiters")}
+                        >
+                          <Users />
+                          <span>Sassari</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </SidebarGroup>
             <SidebarGroup>
               <Collapsible defaultOpen className="group/collapsible">
                 <CollapsibleTrigger asChild>

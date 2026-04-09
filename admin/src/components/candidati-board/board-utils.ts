@@ -1,3 +1,12 @@
+/**
+ * Candidate Board low-level utilities and shared types.
+ *
+ * Responsibilities:
+ * - board state shape and versioned local persistence;
+ * - movement/reorder helpers;
+ * - migration-safe hydration logic;
+ * - shared filter-related storage keys/constants.
+ */
 import { arrayMove } from "@dnd-kit/sortable"
 import {
   CANDIDATES,

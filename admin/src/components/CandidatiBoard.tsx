@@ -208,6 +208,7 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: Candidate
     handleRestoreCandidate,
     handleRestoreArchivedCandidate,
     handleArchiveCandidate,
+    handlePromoteToWaiter,
     handleRequestInterviewCandidate,
     handleRequestTrainingCandidate,
     handleRequestPostponeCandidate,
@@ -255,6 +256,7 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: Candidate
                 onPlanTraining={handleRequestTrainingCandidate}
                 onPostpone={handleRequestPostponeCandidate}
                 onArchive={handleArchiveCandidate}
+                onPromoteToWaiter={handlePromoteToWaiter}
                 postponeReminderCounts={
                   id === "in_attesa"
                     ? {
