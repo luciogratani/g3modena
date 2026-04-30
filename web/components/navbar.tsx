@@ -4,6 +4,11 @@ import { Menu, X } from "lucide-react"
 import { Logo } from "@/components/logo"
 import { navigationLinks } from "@/data/navigation"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { trackCtaClick } from "@/lib/analytics"
+import {
+  CTA_KEYS,
+  getNavAnchorCtaKeyByHref,
+} from "@/lib/analytics-cta-keys"
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -37,6 +42,11 @@ export function Navbar() {
     e: React.MouseEvent<HTMLAnchorElement>,
     href: string
   ) => {
+    const ctaKey = getNavAnchorCtaKeyByHref(href)
+    if (ctaKey) {
+      trackCtaClick(ctaKey)
+    }
+
     if (!isMobile) {
       e.preventDefault()
       scrollToSectionCentered(href)
@@ -74,6 +84,7 @@ export function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
         <a
           href="#"
+          onClick={() => trackCtaClick(CTA_KEYS.NAV_LOGO_HOME)}
           aria-label="G3 Waiters & Experience"
           className={`transition-colors duration-500 ${
             scrolled ? "text-foreground" : "text-background"
@@ -127,7 +138,13 @@ export function Navbar() {
                 <a
                   key={link.href}
                   href={link.href}
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => {
+                    const ctaKey = getNavAnchorCtaKeyByHref(link.href)
+                    if (ctaKey) {
+                      trackCtaClick(ctaKey)
+                    }
+                    setMobileOpen(false)
+                  }}
                   className="link-luxury text-xs uppercase tracking-[0.15em] text-foreground transition-colors hover:text-gold"
                 >
                   {link.label}

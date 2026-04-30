@@ -1,4 +1,5 @@
 import { getStoredCampaignAttribution } from "@/lib/campaign-attribution"
+import type { CtaKey } from "@/lib/analytics-cta-keys"
 
 export type AnalyticsEventType =
   | "page_view"
@@ -15,7 +16,7 @@ type AnalyticsEventRecord = {
   funnelAttemptId?: string
   formStepIndex?: number
   formFieldKey?: string
-  ctaKey?: string
+  ctaKey?: CtaKey
   citySlug?: string
   cid?: string
   utmSource?: string
@@ -25,14 +26,22 @@ type AnalyticsEventRecord = {
   utmContent?: string
 }
 
-type TrackAnalyticsEventInput = {
-  eventType: AnalyticsEventType
+type TrackAnalyticsEventBaseInput = {
   funnelAttemptId?: string
   formStepIndex?: number
   formFieldKey?: string
-  ctaKey?: string
   citySlug?: string
 }
+
+type TrackAnalyticsEventInput =
+  | (TrackAnalyticsEventBaseInput & {
+      eventType: "cta_click"
+      ctaKey: CtaKey
+    })
+  | (TrackAnalyticsEventBaseInput & {
+      eventType: Exclude<AnalyticsEventType, "cta_click">
+      ctaKey?: never
+    })
 
 const ANALYTICS_SESSION_ID_KEY = "web:analytics:session-id:v1"
 const CAREERS_FUNNEL_ATTEMPT_ID_KEY = "web:analytics:careers:funnel-attempt-id:v1"
@@ -147,6 +156,13 @@ export function trackCareersAbandonIfNeeded(
   })
   setCareersAttemptFlag(CAREERS_ABANDON_SENT_KEY_PREFIX, attemptId)
   return event
+}
+
+export function trackCtaClick(ctaKey: CtaKey): AnalyticsEventRecord {
+  return trackAnalyticsEvent({
+    eventType: "cta_click",
+    ctaKey,
+  })
 }
 
 export function trackAnalyticsEvent(input: TrackAnalyticsEventInput): AnalyticsEventRecord {

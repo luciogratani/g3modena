@@ -3,6 +3,8 @@ import { motion, useScroll, useTransform } from "framer-motion"
 import { fadeIn, fadeInUp, staggerContainer, luxuryEase } from "@/lib/animations"
 import type { HeroContent, HeroMedia } from "@/data/site-content"
 import { inferMediaType } from "@/lib/media"
+import { trackCtaClick } from "@/lib/analytics"
+import { CTA_KEYS } from "@/lib/analytics-cta-keys"
 
 interface HeroProps {
   content: HeroContent
@@ -108,12 +110,14 @@ export function Hero({ content }: HeroProps) {
         >
           <a
             href={content.primaryCta.href}
+            onClick={() => trackCtaClick(CTA_KEYS.HERO_PRIMARY_CONTACT)}
             className="button-luxury inline-flex items-center justify-center bg-gold px-8 py-3.5 text-xs font-medium uppercase tracking-[0.2em] text-gold-foreground transition-all duration-300 hover:bg-gold/90"
           >
             {content.primaryCta.label}
           </a>
           <a
             href={content.secondaryCta.href}
+            onClick={() => trackCtaClick(CTA_KEYS.HERO_SECONDARY_CAREERS)}
             className="button-luxury inline-flex items-center justify-center border border-background/40 px-8 py-3.5 text-xs font-medium uppercase tracking-[0.2em] text-background transition-all duration-300 hover:border-background hover:bg-background/10"
           >
             {content.secondaryCta.label}

@@ -2,6 +2,11 @@ import { Mail, Phone } from "lucide-react"
 import type { FooterContent } from "@/data/site-content"
 import { Logo } from "@/components/logo"
 import { navigationLinks } from "@/data/navigation"
+import { trackCtaClick } from "@/lib/analytics"
+import {
+  getFooterContactCtaKeyByHref,
+  getFooterQuickCtaKeyByHref,
+} from "@/lib/analytics-cta-keys"
 
 const contactIcon = {
   phone: <Phone className="h-3.5 w-3.5" strokeWidth={1.5} />,
@@ -39,6 +44,12 @@ export function Footer({ content }: FooterProps) {
                 <a
                   key={link.href}
                   href={link.href}
+                  onClick={() => {
+                    const ctaKey = getFooterQuickCtaKeyByHref(link.href)
+                    if (ctaKey) {
+                      trackCtaClick(ctaKey)
+                    }
+                  }}
                   className="link-luxury text-sm text-primary-foreground/50 transition-colors hover:text-gold"
                 >
                   {link.label}
@@ -60,6 +71,12 @@ export function Footer({ content }: FooterProps) {
                 <a
                   key={entry.href}
                   href={entry.href}
+                  onClick={() => {
+                    const ctaKey = getFooterContactCtaKeyByHref(entry.href)
+                    if (ctaKey) {
+                      trackCtaClick(ctaKey)
+                    }
+                  }}
                   className="link-luxury flex items-center gap-2 text-sm text-primary-foreground/50 transition-colors hover:text-gold"
                 >
                   {contactIcon[entry.type]}

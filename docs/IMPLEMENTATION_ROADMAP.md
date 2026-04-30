@@ -40,8 +40,9 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 - [x] **C1 — Sessione funnel e `event_type` v1**  
   `web/lib/analytics.ts`: `getOrCreateSessionId()` → **`web:analytics:session-id:v1`**; funnel careers **`web:analytics:careers:funnel-attempt-id:v1`** + `clearCareersFunnelAttemptId` dopo submit; union **`AnalyticsEventType`** allineata al concept (`page_view`, `cta_click`, `careers_form_open`, `careers_step_view`, `careers_abandon`, `careers_submit`); buffer **`web:analytics:buffer:v1`** (max 200 eventi); log **`[analytics/local]`** in dev; UTM + **`cid`** denormalizzati su ogni record da campaign attribution. **`App.tsx`**: `page_view` dopo capture attribution. **`careers-form.tsx`**: `careers_form_open`, `careers_step_view` (step index), `careers_submit` con `citySlug` / `funnelAttemptId`.
 
-- [ ] **C2 — Inventario `cta_key`**  
-  Costante/module condiviso allineato a [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md) (inventario CTA).
+- [x] **C2 — Inventario `cta_key`**  
+  Costante/module condiviso allineato a [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md) (inventario CTA).  
+  2026-04-30: introdotti `web/lib/analytics-cta-keys.ts`, helper `trackCtaClick` in `web/lib/analytics.ts`, wiring click in `web/components/navbar.tsx`, `web/components/hero.tsx`, `web/components/footer.tsx`.
 
 - [x] **C3 — `careers_abandon`**  
   Implementato in `careers-form.tsx` con listener best-effort `visibilitychange` (`hidden`) + `pagehide`; dedup max 1 evento per `funnel_attempt_id` tramite chiavi sessione versionate (`abandon-sent` / `submit-sent`) in `web/lib/analytics.ts`.
@@ -81,4 +82,4 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: **C3** completato (2026-04-30). Prossimo focus consigliato: **C2** (`cta_key`), **C4** (invio eventi), oppure **A4** (quinta colonna board).
+Ultimo aggiornamento checklist: **C2** completato (2026-04-30). Prossimo focus consigliato: **C4** (invio eventi) oppure **A4** (quinta colonna board).
