@@ -55,15 +55,17 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 ## Fase D — Schema e revisione
 
-- [ ] **D1 — Audit ERD**  
-  Eseguire prompt in [`AGENT_PROMPT_ERD_AUDIT.md`](AGENT_PROMPT_ERD_AUDIT.md); allineare Mermaid + `DB_CMS_INTEGRATION` §12 se necessario.
+- [x] **D1 — Audit ERD**  
+  Eseguito audit schema/contratti; risolti mismatch v1 tra ERD concettuale e contratti operativi (campaigns, candidates.languages, analytics ingest, cms tenant key).
+  2026-05-01: audit consolidato in `supabase/README.md` + note in `docs/DEVELOPMENT_NOTES.md`.
 
 ---
 
 ## Fase E — Backend (ultima ondata)
 
-- [ ] **E1 — Migrazioni Supabase**  
-  Tabelle (`cities`, `candidates`, `staff`, `campaigns`, `cms_sections`, `contact_messages`, `analytics_events`, …), indici.
+- [x] **E1 — Migrazioni Supabase**  
+  Tabelle (`cities`, `candidates`, `staff`, `campaigns`, `cms_sections`, `contact_messages`, `analytics_events`) con indici e vincoli minimi v1 (schema-only, senza seed mock/business).
+  2026-05-01: creato set `supabase/migrations/20260501000000`…`20260501000070`.
 
 - [ ] **E2 — RLS**  
   Matrice anon (sito) vs authenticated (admin) come da concept; rate limit / validazione submit.
@@ -104,7 +106,6 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 - **C4** — flush/export analytics (buffer già presente; utile ma non impedisce il sito).
 - **A4 / A5** — quinta colonna board, dashboard KPI raffinati.
-- **D1** — audit ERD (preparazione schema; va fatto prima del backend grosso ma non blocca una landing statica).
 - Smoke test manuali Camerieri, dialog «Crea Cameriere» completo, refactor frammentazione (`CandidatiBoard`, `careers-form`, …) — qualità/tech debt, non prerequisito minimo funzionale.
 
 ---
@@ -113,4 +114,4 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: milestone **C4** ingest analytics (2026-05-01); gate **L1–L5** e milestone **C2** (2026-04-30). Prossimo focus tecnico consigliato: **D1** (audit ERD), gate **L1–L4**, oppure **A4** / **A5** (admin UI).
+Ultimo aggiornamento checklist: milestone **D1 + E1** (2026-05-01, SQL schema-only in `supabase/migrations`), milestone **C4** ingest analytics (2026-05-01), gate **L1–L5** e milestone **C2** (2026-04-30). Prossimo focus tecnico consigliato: **E2** (RLS), quindi gate **L1/L2/L4**.

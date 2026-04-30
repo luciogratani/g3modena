@@ -225,6 +225,25 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 
 ---
 
+## Schema v1 — decisioni (D1 + E1)
+
+Stato 2026-05-01: completati **audit ERD (D1)** e **migrazioni SQL v1 (E1)** in `supabase/migrations/`.
+
+- **Vincolo no-mock confermato:** migrazioni **schema-only**; nessun `INSERT` di dati demo/business.
+- **Tabelle create v1:** `cities`, `campaigns`, `candidates`, `staff`, `cms_sections`, `contact_messages`, `analytics_events`.
+- **Helper condiviso:** `pgcrypto` + trigger function `set_updated_at_timestamp()` (solo utilità tecnica).
+- **Scelte principali allineate ai contratti:**
+  - `campaigns`: `cid` unique, stato derivato runtime (`first_data_at`/`last_data_at`), niente `status` persistito;
+  - `candidates.languages`: `text[]` (payload web a lista);
+  - `analytics_events`: append-only con `client_event_id` (idempotenza ingest) e `received_at`;
+  - `cms_sections`: unique composito tenant+sezione (`NULLS NOT DISTINCT`, Postgres 15+);
+  - `contact_messages`: `updated_at` + workflow `nuovo|letto|archiviato`.
+- **Perimetro residuo:** E2 (RLS), E3 (Storage bucket/policy), E4 (adapter admin/web da localStorage a Supabase), E5 (Auth/guard).
+
+Riferimenti: `supabase/README.md`, `docs/CAMPAIGNS_CONTRACT.md`, `docs/ANALYTICS_INGEST_CONTRACT.md`, `docs/DB_CMS_INTEGRATION.md`.
+
+---
+
 ## TODO post-lancio / evolutivi
 
 - [ ] Publish flow CMS (`draft/published`, `updated_at`, versioning).
