@@ -7,6 +7,10 @@ Stato sintetico di `admin` in fase pre-lancio demo, con focus su:
 - CMS editor + SEO + contatti;
 - decisioni architetturali in vista di DB/Auth.
 
+Piano dati condiviso con `web` (schema Supabase previsto, sequenza pre-wiring): [`DB_CMS_INTEGRATION.md`](DB_CMS_INTEGRATION.md) — sezione **Parte Admin**.
+
+Concept pre-coding (campagne, analytics, città + form, RLS): [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md).
+
 ---
 
 ## Stato attuale (pre-lancio)
@@ -46,31 +50,29 @@ Stato sintetico di `admin` in fase pre-lancio demo, con focus su:
 - [x] Card `Monitor Supabase` in `Impostazioni` con check mount + retry.
 - [x] Stati e telemetria base (`Online/Offline/Config mancante/In corso`, latenza, ultimo controllo).
 
-### Camerieri (MVP split-view CRM + Timeline)
+### Camerieri (MVP CRM locale)
 
-Contesto prodotto (vincolo forte):
-- vista orientata a CRM + disponibilita medio termine (3-5 settimane), non pianificazione giornaliera;
-- niente calendario mensile tradizionale;
-- planning operativo dettagliato resta su software esterno.
+Scope attuale:
+- CRM camerieri per citta (`Modena` / `Sassari`), senza timeline disponibilita in admin.
 
 #### Strategia di implementazione usata (safe order)
 0. allineamento note + scope `now vs future`;
 1. fondazioni dati (modello + storage locale versionato + idempotenza);
 2. sidebar/routing per flusso end-to-end navigabile;
-3. shell split-view desktop (70/30) con pannello destro placeholder;
-4. CRM sinistro reale (tabella, ricerca/filtro, CTA placeholder);
+3. pagina CRM desktop (singolo pannello);
+4. tabella con ricerca/filtro e CTA placeholder;
 5. promozione da board candidati verso storage camerieri;
 6. hardening con build/lint/test board.
 
 #### Stato implementato ORA
 - [x] Sidebar/routing `Camerieri > Modena/Sassari` (pattern coerente a `Candidati`).
-- [x] Pagina desktop split-view con resize drag (`ResizablePanelGroup`) e default `left 70% / right 30%`.
-- [x] Pannello sinistro CRM operativo con colonne minime richieste:
+- [x] Pagina CRM desktop a pannello unico (`CamerieriPage`).
+- [x] CRM operativo con colonne minime richieste:
   - avatar;
   - nome e cognome;
-  - contatto;
+  - contatto (azioni rapide);
   - stato attivo;
-  - tag sintetici.
+  - tag sintetici (icone).
 - [x] Ricerca base (nome/email/telefono/tag) + filtro stato (`all|active|inactive`).
 - [x] CTA `Crea Cameriere` con dialog placeholder.
 - [x] Modello dati dedicato `Cameriere` separato da `Candidato`.
@@ -78,10 +80,10 @@ Contesto prodotto (vincolo forte):
   - key: `admin:camerieri:crm:v1`;
   - parser/sanitizer robusto con fallback safe;
   - bucket per citta `modena|sassari`.
+  - eventuali chiavi legacy nel JSON (es. dati rimossi da vecchie prove) possono restare nel blob ma non sono lette dal modello corrente.
 - [x] Promozione da board candidati (`Promuovi a Cameriere`) con idempotenza minima:
   - upsert su `sourceCandidateId`;
   - no duplicazioni evidenti anche su promozioni ripetute.
-- [x] Pannello destro timeline predisposto come placeholder tecnico (header + shell vuota).
 
 #### Struttura modulare introdotta
 `admin/src/components/camerieri/`
@@ -91,7 +93,6 @@ Contesto prodotto (vincolo forte):
 - `useCamerieri.ts`
 - `CamerieriPage.tsx`
 - `CamerieriCrmPanel.tsx`
-- `CamerieriTimelinePanel.tsx`
 - `CamerieriTable.tsx`
 - `CreateCameriereDialog.tsx`
 
@@ -101,17 +102,13 @@ Integrazioni cross-modulo:
 
 #### Criteri di accettazione coperti
 - [x] Sidebar mostra `Camerieri > Modena/Sassari` funzionanti.
-- [x] Split-view desktop presente con default `70/30` + divisore drag.
-- [x] CRM sinistro operativo con Avatar + Nome/Cognome (e colonne CRM minime utili).
+- [x] CRM operativo con Avatar + Nome/Cognome (e colonne CRM minime utili).
 - [x] Bottone `Crea Cameriere` apre dialog placeholder.
 - [x] Context menu candidati consente promozione con persistenza locale.
-- [x] Pannello destro timeline predisposto come placeholder tecnico pronto a evoluzione.
 
 #### Smoke test manuale minimo (regressioni)
 - [ ] Navigazione sidebar:
   - aprire `Camerieri > Modena` e `Camerieri > Sassari`, verificare pagina corretta.
-- [ ] Split resize:
-  - trascinare il divider e verificare ridimensionamento pannelli senza glitch.
 - [ ] CRM:
   - verificare rendering tabella, ricerca e filtro stato.
 - [ ] CTA placeholder:
@@ -123,71 +120,8 @@ Integrazioni cross-modulo:
   - reload pagina e verifica mantenimento dati camerieri.
 
 #### Rimandato alla prossima iterazione
-- [ ] Timeline disponibilita completa (orizzonte settimane + sync righe CRM + interazioni).
 - [ ] Dialog `Crea Cameriere` completo (form, validazioni, salvataggio).
 - [ ] Backend wiring `Camerieri` (migrazione da localStorage a sorgente remota + policy/tenant).
-
-#### Mini RFC tecnica: Timeline data-first (v0)
-
-Obiettivo: mantenere la UX gia validata (split CRM + timeline) ma consolidare una base tecnica robusta per zoom, editing e persistenza reale.
-
-1. Contratto dati canonico (single source of truth)
-- aggiungere in `types.ts`:
-  - `CameriereAvailabilityKind = "available" | "unavailable"`;
-  - `CameriereAvailabilityWindow = { id, startDate, endDate, kind, note?, source?, createdAt, updatedAt }`;
-  - `CameriereTimelineScale = "2w" | "1m" | "2m" | "4m"`;
-- aggiungere su `Cameriere`:
-  - `availabilityWindows?: CameriereAvailabilityWindow[]`.
-
-Regole dati minime:
-- intervalli semichiusi `[startDate, endDate)` per evitare ambiguita su adiacenze;
-- normalizzazione giornaliera locale (00:00) nel MVP;
-- ordinamento per `startDate` crescente;
-- merge automatico di segmenti adiacenti con stesso `kind` (post-edit);
-- in caso di overlap con `kind` diversi, vince il segmento piu recente (`updatedAt`).
-
-2. Engine geometrico isolato (no logica date dentro JSX)
-- creare `camerieri/timeline-geometry.ts` con funzioni pure:
-  - `getTimelineRange(scale, referenceDate)`;
-  - `dateToPercent(date, range)`;
-  - `windowToSegment(window, range)`;
-  - `snapDate(date, granularity)` (giorno/settimana);
-  - `clampWindowToRange(window, range)`.
-- vantaggio: zoom/edit diventano estensioni senza rifare il renderer.
-
-3. Metriche layout condivise (allineamento stabile)
-- creare `camerieri/timeline-constants.ts`:
-  - `TIMELINE_HEADER_HEIGHT`, `TIMELINE_ROW_HEIGHT`, `TIMELINE_GRID_STROKE`;
-- usare le stesse costanti in tabella sx e timeline dx;
-- evitare valori "magic" duplicati tra componenti.
-
-4. Rendering timeline (fasi)
-- Fase 1: header tempo + griglia + marker "oggi" + segmenti da `availabilityWindows`;
-- Fase 2: selector scala (`2w/1m/2m/4m`) con persistenza locale della scelta;
-- Fase 3: drag-to-draw con preview e snapping giornaliero.
-
-5. Persistenza e migrazione
-- passare storage camerieri a `v2`:
-  - mantenere backward compatibility caricando `v1` e valorizzando `availabilityWindows: []`;
-  - durante la fase demo, opzionale "seed visuale" solo se la lista e vuota e solo per ambienti locali;
-- introdurre helper dedicati:
-  - `upsertAvailabilityWindow(cameriereId, payload)`,
-  - `deleteAvailabilityWindow(cameriereId, windowId)`,
-  - `normalizeAvailabilityWindows(windows)`.
-
-6. Strategia test minima
-- unit test su `timeline-geometry` (mapping date->x, clamp, snapping);
-- unit test su normalizzazione finestre (merge/overlap/ordering);
-- smoke UI:
-  - cambio scala mantiene marker oggi e allineamento righe;
-  - creazione/rimozione finestra aggiorna solo la riga interessata;
-  - reload pagina mantiene finestre e scala.
-
-Roadmap consigliata (breve):
-- Step A: contratto + constants + geometry;
-- Step B: render segmenti da dati persistiti (niente drag);
-- Step C: zoom;
-- Step D: drag-to-draw + refine UX.
 
 ---
 
@@ -199,6 +133,9 @@ Roadmap consigliata (breve):
 - **Filters policy**: filtri `Nuovo` persistenti per citta; filtro nascosto => filtro disattivato/reset.
 - **Contract policy**: nuove key CMS prima in `@g3/content-contract`, poi propagate ad admin/web.
 - **Auth policy**: fuori scope finche non parte lo step sicurezza.
+- **Campagne status policy**: usare `first_data_at` (primo `page_view` con `cid`) e `last_data_at` (ultimo evento attribuito) come uniche fonti canoniche.
+- **Campagne query policy**: derivare `No dati|Attiva|Disattiva` a runtime (finestra 5 giorni) senza persistere `status` in colonna nella v1.
+- **Campagne identity policy**: `campaigns.id` (uuid) e` l'ID interno canonico; `cid` resta token corto pubblico per link tracking.
 
 ---
 
@@ -209,6 +146,41 @@ Roadmap consigliata (breve):
 - [ ] **CMS wiring production-safe**: verifica schema, RLS/policy, tenant separation, fallback robusto.
 - [ ] **Web runtime da DB**: lettura reale contenuti da Supabase con fallback/feature-flag.
 - [ ] **Auth/protezione admin**: login + guard route + policy minime.
+
+---
+
+## Inventario migrazione DB (pre-wiring)
+
+Questa sezione fotografa le sorgenti locali che dovranno essere considerate quando si passa a Supabase. Il modello dati completo resta descritto in `docs/DB_CMS_INTEGRATION.md` e nel concept pre-wiring.
+
+### Decisioni schema da rispettare
+
+- **Città:** usare `cities.id` come FK (`city_id`) sulle tabelle operative; `cities.slug` sostituisce il concetto legacy `city_code` (`modena`, `sassari`) per URL, seed, export e mapping da dati locali.
+- **Candidati:** tabella `candidates` con mapping dal form web e stato workflow admin (`pipeline_stage` o equivalente). Allegati v1 come path diretti (`profile_photo_path`, `cv_path`), senza tabella attachment dedicata.
+- **Staff:** tabella DB `staff`; la UI può continuare a chiamare il dominio “Camerieri”. Collegamento opzionale a candidato con `source_candidate_id`.
+- **CMS:** tabella `cms_sections` con `section_key`; `seo` è una riga speciale nella stessa tabella, non una tabella separata in v1.
+- **Contatti:** tabella `contact_messages` separata da analytics, con stato `nuovo|letto|archiviato`.
+
+### localStorage e segnali da migrare o preservare
+
+| Dominio | Chiave / evento | Destinazione prevista |
+|--------|------------------|-----------------------|
+| Board candidati | `admin:candidates:board:v1` | `candidates` + stato workflow/ordinamento dove necessario |
+| Filtri colonna `Nuovo` | `admin:candidates:new-column-filters:state:v1:{modena|sassari}` | Restano preferenze locali salvo richiesta sync |
+| Visibilità filtri `Nuovo` | `admin:candidates:new-column-filters:visibility:v1:{modena|sassari}` | Restano preferenze locali |
+| Recap giornaliero | `admin:candidates:daily-recap:dismissed-on` | Preferenza locale, non DB v1 |
+| Messaggi contatti | `admin:contact-messages:v1` + evento `admin:contacts:messages-updated` | `contact_messages` |
+| Camerieri CRM | `admin:camerieri:crm:v1` + evento `admin:camerieri:updated` | `staff` |
+| Board update | evento `admin:candidates:board-updated` | Sostituire con invalidazione/query refresh adapter |
+| Tema admin | `admin-theme-preference` (`admin-theme` legacy) | Resta localStorage |
+
+### Env Supabase admin già usate dal codice
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_SUPABASE_CMS_TABLE` (default `cms_sections`)
+- `VITE_TENANT_SCHEMA` (opzionale)
+- `VITE_SUPABASE_MEDIA_BUCKET` (default `site-media`)
 
 ---
 

@@ -3,10 +3,10 @@ import {
   Settings,
   FileEdit,
   ChevronDown,
-  Mail,
   Search,
   MessageSquare,
   LayoutDashboard,
+  Megaphone,
   Users,
   HelpCircle,
 } from "lucide-react"
@@ -29,7 +29,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { PagePlaceholder } from "./components/PagePlaceholder"
 import { PageLoadingFallback } from "./components/PageLoadingFallback"
 import { GestionaleContatti } from "./components/GestionaleContatti"
 import {
@@ -39,6 +38,7 @@ import {
 import { Dashboard } from "./components/Dashboard"
 import { CandidatiBoard } from "./components/CandidatiBoard"
 import { CamerieriPage } from "./components/camerieri/CamerieriPage"
+import { CampagnePage } from "./components/campagne/CampagnePage"
 import { SettingsPage } from "./components/SettingsPage"
 import { SeoSettingsPage } from "./components/SeoSettingsPage"
 import { CANDIDATES } from "./data/mockCandidates"
@@ -53,8 +53,8 @@ import {
 
 type Page =
   | "dashboard"
+  | "campaigns"
   | "cms"
-  | "contact"
   | "seo"
   | "modenaBoard"
   | "sassariBoard"
@@ -65,8 +65,8 @@ type Page =
 
 const PAGE_TITLES: Record<Page, string> = {
   dashboard: "Dashboard › Overview",
+  campaigns: "Marketing › Campagne",
   cms: "CMS › Web Editor",
-  contact: "CMS › Contatti agenzia",
   seo: "CMS › SEO",
   modenaBoard: "Candidati › Modena › Board",
   sassariBoard: "Candidati › Sassari › Board",
@@ -152,13 +152,6 @@ export default function App() {
             <CmsWebEditor />
           </Suspense>
         )
-      case "contact":
-        return (
-          <PagePlaceholder
-            title="Contatti agenzia"
-            description="Indirizzo, telefono, email e altri dati di contatto dell’agenzia."
-          />
-        )
       case "seo":
         return <SeoSettingsPage />
       case "modenaBoard":
@@ -171,6 +164,8 @@ export default function App() {
         return <CamerieriPage city="modena" />
       case "sassariWaiters":
         return <CamerieriPage city="sassari" />
+      case "campaigns":
+        return <CampagnePage />
       case "settings":
         return (
           <SettingsPage
@@ -236,6 +231,32 @@ export default function App() {
               <Collapsible defaultOpen className="group/collapsible">
                 <CollapsibleTrigger asChild>
                   <SidebarGroupLabel className="flex cursor-pointer items-center justify-between gap-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                    <span>Marketing</span>
+                    <ChevronDown className="shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                  </SidebarGroupLabel>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={page === "campaigns"}
+                          tooltip="Campagne marketing e UTM"
+                          onClick={() => setPage("campaigns")}
+                        >
+                          <Megaphone />
+                          <span>Campagne</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </SidebarGroup>
+            <SidebarGroup>
+              <Collapsible defaultOpen className="group/collapsible">
+                <CollapsibleTrigger asChild>
+                  <SidebarGroupLabel className="flex cursor-pointer items-center justify-between gap-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
                     <span>CMS</span>
                     <ChevronDown className="shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                   </SidebarGroupLabel>
@@ -255,58 +276,12 @@ export default function App() {
                       </SidebarMenuItem>
                       <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={page === "contact"}
-                          tooltip="Contatti agenzia"
-                          onClick={() => setPage("contact")}
-                        >
-                          <Mail />
-                          <span>Contatti agenzia</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
                           isActive={page === "seo"}
                           tooltip="Impostazioni SEO"
                           onClick={() => setPage("seo")}
                         >
                           <Search />
                           <span>SEO</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </CollapsibleContent>
-              </Collapsible>
-            </SidebarGroup>
-            <SidebarGroup>
-              <Collapsible defaultOpen className="group/collapsible">
-                <CollapsibleTrigger asChild>
-                  <SidebarGroupLabel className="flex cursor-pointer items-center justify-between gap-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-                    <span>Camerieri</span>
-                    <ChevronDown className="shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                  </SidebarGroupLabel>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={page === "modenaWaiters"}
-                          tooltip="Camerieri Modena"
-                          onClick={() => setPage("modenaWaiters")}
-                        >
-                          <Users />
-                          <span>Modena</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={page === "sassariWaiters"}
-                          tooltip="Camerieri Sassari"
-                          onClick={() => setPage("sassariWaiters")}
-                        >
-                          <Users />
-                          <span>Sassari</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     </SidebarMenu>
@@ -353,6 +328,42 @@ export default function App() {
                               {newCandidatesByCity.sassari}
                             </span>
                           )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </SidebarGroup>
+            <SidebarGroup>
+              <Collapsible defaultOpen className="group/collapsible">
+                <CollapsibleTrigger asChild>
+                  <SidebarGroupLabel className="flex cursor-pointer items-center justify-between gap-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
+                    <span>Camerieri</span>
+                    <ChevronDown className="shrink-0 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                  </SidebarGroupLabel>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarGroupContent>
+                    <SidebarMenu>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={page === "modenaWaiters"}
+                          tooltip="Camerieri Modena"
+                          onClick={() => setPage("modenaWaiters")}
+                        >
+                          <Users />
+                          <span>Modena</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={page === "sassariWaiters"}
+                          tooltip="Camerieri Sassari"
+                          onClick={() => setPage("sassariWaiters")}
+                        >
+                          <Users />
+                          <span>Sassari</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     </SidebarMenu>

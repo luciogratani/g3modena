@@ -7,10 +7,15 @@ Repository monorepo con due applicazioni:
 
 ## Documentazione
 
-- [Web design e scelte UX](web/README.md)
-- [Integrazione DB/CMS Web](web/DB_CMS_INTEGRATION.md)
+Indice centralizzato: **[docs/README.md](docs/README.md)**  
+Roadmap con checkbox (avanzamento implementazione): **[docs/IMPLEMENTATION_ROADMAP.md](docs/IMPLEMENTATION_ROADMAP.md)**
+
+- [Design e scelte UX — sito web](docs/WEB_DESIGN.md)
+- [Data layer & Supabase — web + pianificazione admin](docs/DB_CMS_INTEGRATION.md)
+- [Concept pre-wiring: campagne, analytics, città, RLS](docs/PRE_WIRING_CONCEPT.md)
+- [Prompt agent — audit ERD / coerenza schema](docs/AGENT_PROMPT_ERD_AUDIT.md)
+- [Note sviluppo Admin](docs/DEVELOPMENT_NOTES.md)
 - [Contratto condiviso section key CMS](packages/content-contract/README.md)
-- [Note sviluppo Admin](admin/DEVELOPMENT_NOTES.md)
 
 ## Setup
 

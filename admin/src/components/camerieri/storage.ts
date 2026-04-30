@@ -5,7 +5,7 @@
  */
 import type { Candidate, CandidateCity } from "@/src/data/mockCandidates"
 import { createCameriereInputFromCandidate } from "./mappers"
-import type { Cameriere, CameriereAvailabilityWindow, CameriereCreateInput } from "./types"
+import type { Cameriere, CameriereCreateInput } from "./types"
 
 type SerializedCamerieriV1 = {
   version: 1
@@ -82,33 +82,6 @@ function sanitizeCameriere(raw: unknown): Cameriere | null {
   if (typeof item.lastName !== "string" || !item.lastName.trim()) return null
   if (typeof item.createdAt !== "string" || !item.createdAt.trim()) return null
   if (typeof item.updatedAt !== "string" || !item.updatedAt.trim()) return null
-  const rawAvailabilityWindows = Array.isArray(item.availabilityWindows) ? item.availabilityWindows : []
-  const availabilityWindows = rawAvailabilityWindows
-    .map((entry): CameriereAvailabilityWindow | null => {
-      if (!entry || typeof entry !== "object") return null
-      const window = entry as Partial<CameriereAvailabilityWindow>
-      if (typeof window.id !== "string" || !window.id.trim()) return null
-      if (window.kind !== "available" && window.kind !== "unavailable") return null
-      if (typeof window.startDate !== "string" || !window.startDate.trim()) return null
-      if (typeof window.endDate !== "string" || !window.endDate.trim()) return null
-      if (typeof window.createdAt !== "string" || !window.createdAt.trim()) return null
-      if (typeof window.updatedAt !== "string" || !window.updatedAt.trim()) return null
-      return {
-        id: window.id,
-        startDate: window.startDate,
-        endDate: window.endDate,
-        kind: window.kind,
-        note: typeof window.note === "string" && window.note.trim() ? window.note.trim() : undefined,
-        source:
-          window.source === "manual" || window.source === "import" || window.source === "board_event"
-            ? window.source
-            : undefined,
-        createdAt: window.createdAt,
-        updatedAt: window.updatedAt,
-      }
-    })
-    .filter((entry): entry is CameriereAvailabilityWindow => Boolean(entry))
-
   return {
     id: item.id,
     sourceCandidateId:
@@ -123,7 +96,6 @@ function sanitizeCameriere(raw: unknown): Cameriere | null {
     phone: typeof item.phone === "string" && item.phone.trim() ? item.phone : undefined,
     isActive: typeof item.isActive === "boolean" ? item.isActive : true,
     tags: Array.isArray(item.tags) ? item.tags.filter((tag): tag is Cameriere["tags"][number] => typeof tag === "string") : [],
-    availabilityWindows,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   }
@@ -187,7 +159,6 @@ function buildDemoCamerieriForCity(city: CandidateCity): Cameriere[] {
       phone: `+39 33${(index + 1).toString().padStart(2, "0")} 55 77 ${(10 + index).toString().padStart(2, "0")}`,
       isActive: index % 5 !== 0,
       tags: DEMO_TAGS[index] ?? [],
-      availabilityWindows: [],
       createdAt,
       updatedAt,
     } satisfies Cameriere
@@ -253,7 +224,6 @@ export function upsertCameriere(input: CameriereCreateInput): { created: boolean
       phone: input.phone?.trim() || current.phone,
       isActive: typeof input.isActive === "boolean" ? input.isActive : current.isActive,
       tags: input.tags ?? current.tags,
-      availabilityWindows: current.availabilityWindows ?? [],
       updatedAt: nowIso,
       sourceCandidateId: input.sourceCandidateId ?? current.sourceCandidateId,
     }
@@ -275,7 +245,6 @@ export function upsertCameriere(input: CameriereCreateInput): { created: boolean
     phone: input.phone?.trim() || undefined,
     isActive: typeof input.isActive === "boolean" ? input.isActive : true,
     tags: input.tags ?? [],
-    availabilityWindows: [],
     createdAt: nowIso,
     updatedAt: nowIso,
   }

@@ -7,9 +7,9 @@ Obiettivo: evitare mismatch tra chiavi salvate da admin e chiavi lette dal parse
 ## Collegamenti utili
 
 - Monorepo overview: `../../README.md`
-- Web design docs: `../../web/README.md`
-- Web DB/CMS integration: `../../web/DB_CMS_INTEGRATION.md`
-- Admin development notes: `../../admin/DEVELOPMENT_NOTES.md`
+- Web design docs: `../../docs/WEB_DESIGN.md`
+- Web DB/CMS integration: `../../docs/DB_CMS_INTEGRATION.md`
+- Admin development notes: `../../docs/DEVELOPMENT_NOTES.md`
 
 ## Export principali
 
