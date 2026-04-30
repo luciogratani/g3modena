@@ -26,7 +26,6 @@ import {
 import {
   CANDIDATES,
   type Candidate,
-  type CandidateCity,
   type CandidateStatus,
 } from "@/src/data/mockCandidates"
 import { useNewColumnFilters } from "./useNewColumnFilters"
@@ -38,7 +37,7 @@ import {
   applyTrainingSublaneToCandidate,
   getTrainingSublaneIdFromDrop,
 } from "./workflow-utils"
-export function useCandidateBoardState(boardCity: CandidateCity = "modena") {
+export function useCandidateBoardState(boardCity: string = "modena") {
   const [boardState, setBoardState] = useState<CandidateBoardState>(() =>
     createInitialBoardState(CANDIDATES),
   )

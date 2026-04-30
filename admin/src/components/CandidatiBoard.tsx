@@ -33,7 +33,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { KANBAN_COLUMNS, type CandidateCity, type TrainingSublaneType } from "@/src/data/mockCandidates"
+import { KANBAN_COLUMNS, type TrainingSublaneType } from "@/src/data/mockCandidates"
 import { getCandidatesByStatus, MAIN_BOARD_STATUSES } from "@/src/components/candidati-board/board-utils"
 import { getAgeFromBirthYear, getFullName, getStatusLabel } from "./candidati-board/candidate-utils"
 import { CandidateDetailSheet } from "./candidati-board/CandidateDetailSheet"
@@ -149,7 +149,7 @@ function DatePickerField({
   )
 }
 
-export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: CandidateCity }) {
+export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),

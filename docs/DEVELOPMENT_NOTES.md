@@ -23,6 +23,7 @@ Concept pre-coding (campagne, analytics, città + form, RLS): [`PRE_WIRING_CONCE
 - [x] Pagina **Marketing › Campagne** (`CampagnePage`) MVP locale (builder UTM/`cid`, card demo); contratto operativo [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md).
 
 ### Board candidature
+- [x] Board **parametrizzata per `citySlug` stringa** (città da config `listActiveCities`), senza union rigida solo Modena/Sassari; filtri colonna `Nuovo` e stato board aggiornati di conseguenza (`board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`).
 - [x] DnD stabile con `@dnd-kit` (riordino intra-colonna + movimenti inter-colonna).
 - [x] Workflow assistito con dialog su transizioni (`colloquio`, `formazione`, `in_attesa`).
 - [x] `CandidateDetailSheet` evoluto (editing inline workflow, note, sezioni collassabili, quick actions).
@@ -58,9 +59,18 @@ Concept pre-coding (campagne, analytics, città + form, RLS): [`PRE_WIRING_CONCE
   - chiave **`admin:cities:v1`** (`CITIES_STORAGE_KEY`);
   - evento UI **`admin:cities:updated`** (`CITIES_UPDATED_EVENT`);
   - seed iniziale **modena**, **sassari**; parser/sanitizer difensivo + fallback se JSON corrotto.
-- [x] API storage esposta: `loadCities`, **`listActiveCities()`** (per Step successivo: sidebar Candidati/Camerieri dinamici), CRUD + `moveCity`, `deleteCity`, helper `isCityDeleteLocked` / `canDeleteCity`.
+- [x] API storage esposta: `loadCities`, **`listActiveCities()`** (consumata in **`App.tsx`** per sidebar Candidati/Camerieri e badge), CRUD + `moveCity`, `deleteCity`, helper `isCityDeleteLocked` / `canDeleteCity`.
 - [x] UX: slug univoca; conferma su cambio slug in modifica; attiva/disattiva; ordinamento su/giù; empty state ed errori accessibili.
 - **Limite attuale:** eliminazione **non consentita** per sedi legacy con slug `modena` e `sassari` (insieme `LEGACY_LOCKED_SLUGS` nello storage).
+
+### Sidebar Candidati / Camerieri (dinamica da cities, Step A3)
+
+- [x] **`App.tsx`**: import `listActiveCities`, `CITIES_UPDATED_EVENT`; stato `activeCities` + `useMemo` slug ordinati; listener finestra su **`admin:cities:updated`** per aggiornare città e conteggi “Nuovo”.
+- [x] **Candidati:** voci sidebar generate da città **attive** (nessun hardcode Modena/Sassari); titolo header `Candidati › {label da slug} › Board`.
+- [x] **Badge “Nuovo”:** `getNewCandidatesByCityCounts(activeCitySlugs)` — mappa `Record<string, number>` per slug presenti nelle sedi attive.
+- [x] **Routing pagina:** tipo somma `Page` = static \| `{ kind: candidates, citySlug }` \| `{ kind: waiters, citySlug }`.
+- [x] **Board:** parametrizzazione per **`citySlug: string`** (`CandidatiBoard`, `useCandidateBoardState`, `useNewColumnFilters`, `board-utils`, `KanbanColumn`). Etichetta città in card: `getCandidateCityLabel()` in `candidate-utils.ts` (slug generico → label leggibile).
+- [x] **Camerieri:** voci sidebar da `activeCities.filter` su **`SUPPORTED_WAITER_CITY_SLUGS`** (`modena`, `sassari`): CRM resta compatibile con bucket storage attuale; nuove sedi **non** compaiono in Camerieri finché lo storage staff non è esteso.
 
 ### Camerieri (MVP CRM locale)
 
@@ -77,7 +87,7 @@ Scope attuale:
 6. hardening con build/lint/test board.
 
 #### Stato implementato ORA
-- [x] Sidebar/routing `Camerieri > Modena/Sassari` (pattern coerente a `Candidati`).
+- [x] Sidebar/routing Camerieri allineato alle **città attive** ma **solo** slug `modena` / `sassari` supportati dallo storage CRM (`SUPPORTED_WAITER_CITY_SLUGS` in `App.tsx`).
 - [x] Pagina CRM desktop a pannello unico (`CamerieriPage`).
 - [x] CRM operativo con colonne minime richieste:
   - avatar;
@@ -113,7 +123,7 @@ Integrazioni cross-modulo:
 - board candidati (`CandidateCard` / `KanbanColumn` / `CandidatiBoard` / `useCandidateBoardState`) per azione promozione.
 
 #### Criteri di accettazione coperti
-- [x] Sidebar mostra `Camerieri > Modena/Sassari` funzionanti.
+- [x] Sidebar Candidati: voci da `listActiveCities()` (ordine sedi); Camerieri: stesso ingresso ma filtrato ai due slug legacy finché lo storage è solo `modena|sassari`.
 - [x] CRM operativo con Avatar + Nome/Cognome (e colonne CRM minime utili).
 - [x] Bottone `Crea Cameriere` apre dialog placeholder.
 - [x] Context menu candidati consente promozione con persistenza locale.
@@ -149,6 +159,7 @@ Integrazioni cross-modulo:
 - **Campagne query policy**: derivare `No dati|Attiva|Disattiva` a runtime (finestra 5 giorni) senza persistere `status` in colonna nella v1.
 - **Campagne identity policy**: `campaigns.id` (uuid) è l’ID interno canonico; `cid` resta token corto pubblico per link tracking.
 - **Cities legacy policy**: gli slug seed `modena` / `sassari` non sono eliminabili da UI finché board/camerieri dipendono da compatibilità locale; disattivazione consentita.
+- **Waiters sidebar policy**: la navigazione CRM Camerieri espone solo slug presenti in `SUPPORTED_WAITER_CITY_SLUGS` finché `admin:camerieri:crm:v1` resta bucketato su `modena|sassari`.
 
 ---
 

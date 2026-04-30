@@ -14,8 +14,8 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 - [x] **A2 — Città / sedi**  
   Gestione locale in **Config › Sedi**: tipo `OfficeCity` (`id`, `slug`, `displayName`, `isActive`, `sortOrder`). Storage `admin:cities:v1`, evento `admin:cities:updated`, export `listActiveCities()` per Step A3. Eliminate fisiche bloccate per slug legacy `modena` / `sassari`.
 
-- [ ] **A3 — Board e sidebar candidati dinamiche**  
-  Voci Candidati generate dalle città **attive**; route/board filtrate per `city_id` / slug (addio hardcode solo Modena/Sassari dove non serve più).
+- [x] **A3 — Board e sidebar candidati dinamiche**  
+  Sidebar **Candidati** e titoli pagina da **`listActiveCities()`** (ordine `sortOrder`); badge “Nuovo” per **slug** (`Record<string, number>`). Stato **`Page`**: `{ kind: static }` \| `{ kind: candidates, citySlug }` \| `{ kind: waiters, citySlug }`. Listener **`admin:cities:updated`** per ricalcolo città + badge. Board/parametri (`CandidatiBoard`, `board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`) su **slug stringa** generica. `getCandidateCityLabel()` da slug arbitrario (title case da `-`). **Camerieri:** stessa lista città attive ma **filtrata** a slug con storage supportato (`modena`, `sassari` — `SUPPORTED_WAITER_CITY_SLUGS` in `App.tsx`) fino ad estensione CRM multi-sede.
 
 - [ ] **A4 — Quinta colonna board**  
   Da definire con workflow negli appunti; estensione modello/colonne pipeline se necessario.
@@ -81,4 +81,4 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: **A2** completato (2026-04-30). Prossimo focus consigliato: **A3** (sidebar/board dinamiche da `listActiveCities()`).
+Ultimo aggiornamento checklist: **A3** completato (2026-04-30). Prossimo focus consigliato: **A4** (quinta colonna board) oppure **B1** (`web`/step città).

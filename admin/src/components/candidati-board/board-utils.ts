@@ -12,7 +12,6 @@ import {
   CANDIDATES,
   KANBAN_COLUMNS,
   type Candidate,
-  type CandidateCity,
   type CandidateStatus,
   type TrainingSublaneType,
 } from "@/src/data/mockCandidates"
@@ -81,11 +80,11 @@ export const MAIN_BOARD_STATUSES: CandidateStatus[] = [
   "in_attesa",
 ]
 
-export function getNewColumnFilterVisibilityStorageKey(boardCity: CandidateCity): string {
+export function getNewColumnFilterVisibilityStorageKey(boardCity: string): string {
   return `${NEW_COLUMN_FILTER_VISIBILITY_STORAGE_PREFIX}:${boardCity}`
 }
 
-export function getNewColumnFiltersStorageKey(boardCity: CandidateCity): string {
+export function getNewColumnFiltersStorageKey(boardCity: string): string {
   return `${NEW_COLUMN_FILTERS_STORAGE_PREFIX}:${boardCity}`
 }
 

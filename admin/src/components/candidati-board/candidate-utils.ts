@@ -1,4 +1,4 @@
-import type { Candidate, CandidateCity, CandidateStatus, InterviewOutcome, TrainingTrack } from "@/src/data/mockCandidates"
+import type { Candidate, CandidateStatus, InterviewOutcome, TrainingTrack } from "@/src/data/mockCandidates"
 import { formatCandidateDate } from "./date-utils"
 
 export function toWhatsAppNumber(phone: string): string {
@@ -14,7 +14,13 @@ export function getAgeFromBirthYear(birthYear: number): number {
 }
 
 export function getCandidateCityLabel(candidate: Candidate): string {
-  return candidate.candidateCity === "sassari" ? "Sassari" : "Modena"
+  const slug = candidate.candidateCity.trim()
+  if (!slug) return "N/D"
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ")
 }
 
 export function getStatusLabel(status: CandidateStatus): string {
@@ -108,7 +114,7 @@ export function getWorkflowNote(candidate: Candidate, status: CandidateStatus): 
   return candidate.notes?.trim() ?? null
 }
 
-export function matchesBoardResidence(candidate: Candidate, boardCity: CandidateCity): boolean {
+export function matchesBoardResidence(candidate: Candidate, boardCity: string): boolean {
   const normalizedResidence = candidate.residenceCity.trim().toLowerCase()
   return normalizedResidence === boardCity
 }

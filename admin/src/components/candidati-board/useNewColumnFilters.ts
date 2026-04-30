@@ -17,7 +17,6 @@ import {
   type NewColumnFilterVisibility,
   type NewColumnFilterVisibilityKey,
 } from "@/src/components/candidati-board/board-utils"
-import type { CandidateCity } from "@/src/data/mockCandidates"
 
 function parseFilterVisibilityStorage(rawValue: string | null): NewColumnFilterVisibility {
   if (!rawValue) return { ...DEFAULT_NEW_COLUMN_FILTER_VISIBILITY }
@@ -88,19 +87,19 @@ function parseColumnFiltersStorage(rawValue: string | null): NewColumnFilters {
   }
 }
 
-function loadColumnFiltersForCity(boardCity: CandidateCity): NewColumnFilters {
+function loadColumnFiltersForCity(boardCity: string): NewColumnFilters {
   if (typeof window === "undefined") return getDefaultNewColumnFilters()
   const storageKey = getNewColumnFiltersStorageKey(boardCity)
   return parseColumnFiltersStorage(localStorage.getItem(storageKey))
 }
 
-function loadFilterVisibilityForCity(boardCity: CandidateCity): NewColumnFilterVisibility {
+function loadFilterVisibilityForCity(boardCity: string): NewColumnFilterVisibility {
   if (typeof window === "undefined") return { ...DEFAULT_NEW_COLUMN_FILTER_VISIBILITY }
   const storageKey = getNewColumnFilterVisibilityStorageKey(boardCity)
   return parseFilterVisibilityStorage(localStorage.getItem(storageKey))
 }
 
-export function useNewColumnFilters(boardCity: CandidateCity) {
+export function useNewColumnFilters(boardCity: string) {
   const [newColumnFilters, setNewColumnFilters] = useState<NewColumnFilters>(() => loadColumnFiltersForCity(boardCity))
   const [newColumnFilterVisibility, setNewColumnFilterVisibility] = useState<NewColumnFilterVisibility>(
     () => loadFilterVisibilityForCity(boardCity),

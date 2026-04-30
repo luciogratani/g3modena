@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react"
+import { Suspense, lazy, useEffect, useMemo, useState } from "react"
 import {
   Settings,
   FileEdit,
@@ -41,9 +41,10 @@ import { CandidatiBoard } from "./components/CandidatiBoard"
 import { CamerieriPage } from "./components/camerieri/CamerieriPage"
 import { CampagnePage } from "./components/campagne/CampagnePage"
 import { CitiesPage } from "./components/cities/CitiesPage"
+import { CITIES_UPDATED_EVENT, listActiveCities } from "./components/cities/storage"
 import { SettingsPage } from "./components/SettingsPage"
 import { SeoSettingsPage } from "./components/SeoSettingsPage"
-import { CANDIDATES } from "./data/mockCandidates"
+import { CANDIDATES, type Candidate } from "./data/mockCandidates"
 import { createInitialBoardState, localStorageBoardAdapter } from "@/src/components/candidati-board/board-utils"
 import {
   applyResolvedThemeMode,
@@ -53,55 +54,70 @@ import {
   type ThemePreference,
 } from "./lib/theme-preference"
 
+type StaticPage = "dashboard" | "campaigns" | "cms" | "seo" | "contactForm" | "cities" | "settings"
 type Page =
-  | "dashboard"
-  | "campaigns"
-  | "cms"
-  | "seo"
-  | "modenaBoard"
-  | "sassariBoard"
-  | "modenaWaiters"
-  | "sassariWaiters"
-  | "contactForm"
-  | "cities"
-  | "settings"
+  | { kind: "static"; value: StaticPage }
+  | { kind: "candidates"; citySlug: string }
+  | { kind: "waiters"; citySlug: string }
 
-const PAGE_TITLES: Record<Page, string> = {
+const STATIC_PAGE_TITLES: Record<StaticPage, string> = {
   dashboard: "Dashboard › Overview",
   campaigns: "Marketing › Campagne",
   cms: "CMS › Web Editor",
   seo: "CMS › SEO",
-  modenaBoard: "Candidati › Modena › Board",
-  sassariBoard: "Candidati › Sassari › Board",
-  modenaWaiters: "Camerieri › Modena",
-  sassariWaiters: "Camerieri › Sassari",
   contactForm: "Contatti › Messaggi",
   cities: "Config › Sedi",
   settings: "Config › Impostazioni",
 }
 
+const SUPPORTED_WAITER_CITY_SLUGS = new Set(["modena", "sassari"])
+
 const CmsWebEditor = lazy(() =>
   import("./components/CmsWebEditor").then((module) => ({ default: module.CmsWebEditor })),
 )
 
-function getNewCandidatesByCityCounts() {
+function toLabelFromSlug(slug: string): string {
+  if (!slug.trim()) return slug
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function getNewCandidatesByCityCounts(activeCitySlugs: string[]) {
   const state = localStorageBoardAdapter.load(CANDIDATES) ?? createInitialBoardState(CANDIDATES)
-  let modena = 0
-  let sassari = 0
+  const counts: Record<string, number> = Object.fromEntries(activeCitySlugs.map((slug) => [slug, 0]))
+
   for (const candidateId of state.columns.nuovo) {
     const candidate = state.byId[candidateId]
     if (!candidate) continue
-    if (candidate.candidateCity === "modena") modena += 1
-    if (candidate.candidateCity === "sassari") sassari += 1
+    if (typeof counts[candidate.candidateCity] === "number") {
+      counts[candidate.candidateCity] += 1
+    }
   }
-  return { modena, sassari }
+  return counts
+}
+
+function getPageTitle(page: Page): string {
+  if (page.kind === "static") return STATIC_PAGE_TITLES[page.value]
+  if (page.kind === "candidates") return `Candidati › ${toLabelFromSlug(page.citySlug)} › Board`
+  return `Camerieri › ${toLabelFromSlug(page.citySlug)}`
 }
 
 export default function App() {
-  const [page, setPage] = useState<Page>("dashboard")
+  const [page, setPage] = useState<Page>({ kind: "static", value: "dashboard" })
   const [themePreference, setThemePreference] = useState<ThemePreference>(getInitialThemePreference)
-  const [newCandidatesByCity, setNewCandidatesByCity] = useState(getNewCandidatesByCityCounts)
+  const [activeCities, setActiveCities] = useState(() => listActiveCities())
+  const activeCitySlugs = useMemo(() => activeCities.map((city) => city.slug), [activeCities])
+  const [newCandidatesByCity, setNewCandidatesByCity] = useState<Record<string, number>>(() =>
+    getNewCandidatesByCityCounts(activeCitySlugs),
+  )
   const [newContactMessagesCount, setNewContactMessagesCount] = useState(getNewContactMessagesCount)
+  const waiterCities = useMemo(
+    () => activeCities.filter((city) => SUPPORTED_WAITER_CITY_SLUGS.has(city.slug)),
+    [activeCities],
+  )
 
   useEffect(() => {
     localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, themePreference)
@@ -116,19 +132,39 @@ export default function App() {
 
   useEffect(() => {
     function refreshCandidateCounts() {
-      setNewCandidatesByCity(getNewCandidatesByCityCounts())
+      const cities = listActiveCities()
+      setActiveCities(cities)
+      setNewCandidatesByCity(getNewCandidatesByCityCounts(cities.map((city) => city.slug)))
     }
 
     refreshCandidateCounts()
     window.addEventListener("admin:candidates:board-updated", refreshCandidateCounts)
+    window.addEventListener(CITIES_UPDATED_EVENT, refreshCandidateCounts)
     window.addEventListener("focus", refreshCandidateCounts)
     window.addEventListener("storage", refreshCandidateCounts)
     return () => {
       window.removeEventListener("admin:candidates:board-updated", refreshCandidateCounts)
+      window.removeEventListener(CITIES_UPDATED_EVENT, refreshCandidateCounts)
       window.removeEventListener("focus", refreshCandidateCounts)
       window.removeEventListener("storage", refreshCandidateCounts)
     }
   }, [])
+
+  useEffect(() => {
+    if (page.kind === "candidates") {
+      const stillActive = activeCitySlugs.includes(page.citySlug)
+      if (!stillActive) {
+        setPage({ kind: "static", value: "dashboard" })
+      }
+      return
+    }
+    if (page.kind === "waiters") {
+      const stillAvailable = waiterCities.some((city) => city.slug === page.citySlug)
+      if (!stillAvailable) {
+        setPage({ kind: "static", value: "dashboard" })
+      }
+    }
+  }, [page, activeCitySlugs, waiterCities])
 
   useEffect(() => {
     function refreshContactMessagesCount() {
@@ -147,7 +183,17 @@ export default function App() {
   }, [])
 
   function renderPage() {
-    switch (page) {
+    if (page.kind === "candidates") {
+      return <CandidatiBoard boardCity={page.citySlug} />
+    }
+    if (page.kind === "waiters") {
+      if (!SUPPORTED_WAITER_CITY_SLUGS.has(page.citySlug)) {
+        return null
+      }
+      return <CamerieriPage city={page.citySlug as Candidate["candidateCity"]} />
+    }
+
+    switch (page.value) {
       case "dashboard":
         return <Dashboard />
       case "cms":
@@ -158,16 +204,8 @@ export default function App() {
         )
       case "seo":
         return <SeoSettingsPage />
-      case "modenaBoard":
-        return <CandidatiBoard boardCity="modena" />
-      case "sassariBoard":
-        return <CandidatiBoard boardCity="sassari" />
       case "contactForm":
         return <GestionaleContatti />
-      case "modenaWaiters":
-        return <CamerieriPage city="modena" />
-      case "sassariWaiters":
-        return <CamerieriPage city="sassari" />
       case "campaigns":
         return <CampagnePage />
       case "settings":
@@ -220,9 +258,9 @@ export default function App() {
                     <SidebarMenu>
                       <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={page === "dashboard"}
+                          isActive={page.kind === "static" && page.value === "dashboard"}
                           tooltip="Panoramica admin"
-                          onClick={() => setPage("dashboard")}
+                          onClick={() => setPage({ kind: "static", value: "dashboard" })}
                         >
                           <LayoutDashboard />
                           <span>Overview</span>
@@ -246,9 +284,9 @@ export default function App() {
                     <SidebarMenu>
                       <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={page === "campaigns"}
+                          isActive={page.kind === "static" && page.value === "campaigns"}
                           tooltip="Campagne marketing e UTM"
-                          onClick={() => setPage("campaigns")}
+                          onClick={() => setPage({ kind: "static", value: "campaigns" })}
                         >
                           <Megaphone />
                           <span>Campagne</span>
@@ -272,9 +310,9 @@ export default function App() {
                     <SidebarMenu>
                       <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={page === "cms"}
+                          isActive={page.kind === "static" && page.value === "cms"}
                           tooltip="Contenuti sezioni sito web"
-                          onClick={() => setPage("cms")}
+                          onClick={() => setPage({ kind: "static", value: "cms" })}
                         >
                           <FileEdit />
                           <span>Web Editor</span>
@@ -282,9 +320,9 @@ export default function App() {
                       </SidebarMenuItem>
                       <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={page === "seo"}
+                          isActive={page.kind === "static" && page.value === "seo"}
                           tooltip="Impostazioni SEO"
-                          onClick={() => setPage("seo")}
+                          onClick={() => setPage({ kind: "static", value: "seo" })}
                         >
                           <Search />
                           <span>SEO</span>
@@ -306,36 +344,27 @@ export default function App() {
                 <CollapsibleContent>
                   <SidebarGroupContent>
                     <SidebarMenu>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={page === "modenaBoard"}
-                          tooltip="Candidati Modena"
-                          onClick={() => setPage("modenaBoard")}
-                        >
-                          <Users />
-                          <span>Modena</span>
-                          {newCandidatesByCity.modena > 0 && (
-                            <span className="ml-auto rounded-md bg-sidebar-primary/15 px-1.5 py-0.5 text-xs font-medium text-sidebar-primary">
-                              {newCandidatesByCity.modena}
-                            </span>
-                          )}
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={page === "sassariBoard"}
-                          tooltip="Candidati Sassari"
-                          onClick={() => setPage("sassariBoard")}
-                        >
-                          <Users />
-                          <span>Sassari</span>
-                          {newCandidatesByCity.sassari > 0 && (
-                            <span className="ml-auto rounded-md bg-sidebar-primary/15 px-1.5 py-0.5 text-xs font-medium text-sidebar-primary">
-                              {newCandidatesByCity.sassari}
-                            </span>
-                          )}
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                      {activeCities.map((city) => {
+                        const badgeCount = newCandidatesByCity[city.slug] ?? 0
+                        const label = city.displayName || toLabelFromSlug(city.slug)
+                        return (
+                          <SidebarMenuItem key={`candidate-city-${city.id}`}>
+                            <SidebarMenuButton
+                              isActive={page.kind === "candidates" && page.citySlug === city.slug}
+                              tooltip={`Candidati ${label}`}
+                              onClick={() => setPage({ kind: "candidates", citySlug: city.slug })}
+                            >
+                              <Users />
+                              <span>{label}</span>
+                              {badgeCount > 0 && (
+                                <span className="ml-auto rounded-md bg-sidebar-primary/15 px-1.5 py-0.5 text-xs font-medium text-sidebar-primary">
+                                  {badgeCount}
+                                </span>
+                              )}
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        )
+                      })}
                     </SidebarMenu>
                   </SidebarGroupContent>
                 </CollapsibleContent>
@@ -352,26 +381,18 @@ export default function App() {
                 <CollapsibleContent>
                   <SidebarGroupContent>
                     <SidebarMenu>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={page === "modenaWaiters"}
-                          tooltip="Camerieri Modena"
-                          onClick={() => setPage("modenaWaiters")}
-                        >
-                          <Users />
-                          <span>Modena</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          isActive={page === "sassariWaiters"}
-                          tooltip="Camerieri Sassari"
-                          onClick={() => setPage("sassariWaiters")}
-                        >
-                          <Users />
-                          <span>Sassari</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
+                      {waiterCities.map((city) => (
+                        <SidebarMenuItem key={`waiter-city-${city.id}`}>
+                          <SidebarMenuButton
+                            isActive={page.kind === "waiters" && page.citySlug === city.slug}
+                            tooltip={`Camerieri ${city.displayName}`}
+                            onClick={() => setPage({ kind: "waiters", citySlug: city.slug })}
+                          >
+                            <Users />
+                            <span>{city.displayName}</span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
                     </SidebarMenu>
                   </SidebarGroupContent>
                 </CollapsibleContent>
@@ -390,9 +411,9 @@ export default function App() {
                     <SidebarMenu>
                       <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={page === "contactForm"}
+                          isActive={page.kind === "static" && page.value === "contactForm"}
                           tooltip="Messaggi dal form Contatti"
-                          onClick={() => setPage("contactForm")}
+                          onClick={() => setPage({ kind: "static", value: "contactForm" })}
                         >
                           <MessageSquare />
                           <span>Messaggi</span>
@@ -421,9 +442,9 @@ export default function App() {
                     <SidebarMenu>
                       <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={page === "cities"}
+                          isActive={page.kind === "static" && page.value === "cities"}
                           tooltip="Gestione sedi / citta"
-                          onClick={() => setPage("cities")}
+                          onClick={() => setPage({ kind: "static", value: "cities" })}
                         >
                           <Building2 />
                           <span>Sedi</span>
@@ -431,9 +452,9 @@ export default function App() {
                       </SidebarMenuItem>
                       <SidebarMenuItem>
                         <SidebarMenuButton
-                          isActive={page === "settings"}
+                          isActive={page.kind === "static" && page.value === "settings"}
                           tooltip="Impostazioni"
-                          onClick={() => setPage("settings")}
+                          onClick={() => setPage({ kind: "static", value: "settings" })}
                         >
                           <Settings />
                           <span>Impostazioni</span>
@@ -451,7 +472,7 @@ export default function App() {
             <SidebarTrigger />
             <SidebarRail />
             <span className="text-sm font-medium text-muted-foreground">
-              {PAGE_TITLES[page]}
+              {getPageTitle(page)}
             </span>
             <TooltipProvider>
               <div className="ml-auto flex items-center gap-1">

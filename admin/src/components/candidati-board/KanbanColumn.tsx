@@ -13,7 +13,7 @@ import { useMemo } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { Badge } from "@/components/ui/badge"
-import type { Candidate, CandidateCity, CandidateStatus } from "@/src/data/mockCandidates"
+import type { Candidate, CandidateStatus } from "@/src/data/mockCandidates"
 import { cn } from "@/lib/utils"
 import {
   AGE_FILTER_DEFAULT_MAX,
@@ -32,7 +32,7 @@ type KanbanColumnProps = {
   label: string
   status: CandidateStatus
   candidates: Candidate[]
-  boardCity: CandidateCity
+  boardCity: string
   filters: NewColumnFilters
   filterVisibility: NewColumnFilterVisibility
   trainingSublanes?: TrainingSublane[]
@@ -80,14 +80,14 @@ function hasLanguageMatch(
   })
 }
 
-function matchesBoardResidence(candidate: Candidate, boardCity: CandidateCity): boolean {
+function matchesBoardResidence(candidate: Candidate, boardCity: string): boolean {
   return candidate.residenceCity.trim().toLowerCase() === boardCity
 }
 
 function applyNewColumnFilters(
   candidates: Candidate[],
   filters: NewColumnFilters,
-  boardCity: CandidateCity,
+  boardCity: string,
 ): Candidate[] {
   const isAgeFilterActive =
     typeof filters.eta.minAge === "number" &&
