@@ -2,7 +2,7 @@
 
 Sequenza concordata per arrivare al **wiring Supabase** e all’**Auth** per ultimi. Usa le checkbox per segnare l’avanzamento.
 
-Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB_CMS_INTEGRATION.md`](DB_CMS_INTEGRATION.md), [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md), [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md).
+Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB_CMS_INTEGRATION.md`](DB_CMS_INTEGRATION.md), [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md), [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md), [`ANALYTICS_INGEST_CONTRACT.md`](ANALYTICS_INGEST_CONTRACT.md).
 
 ---
 
@@ -49,7 +49,7 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 - [x] **C4 — Invio eventi**  
   Adapter ingest HTTP configurabile (`VITE_ANALYTICS_INGEST_URL`) con flush periodico + lifecycle (`visibilitychange`/`pagehide`) e retry su buffer locale; swap successivo → `INSERT` su `analytics_events` in Supabase.
-  2026-05-01: completato in `web/lib/analytics.ts` (buffer ops + signal update), `web/lib/analytics-ingest.ts` (adapter flush/retry), bootstrap in `web/src/App.tsx`, env in `web/.env.example`, mock locale `web/scripts/mock-analytics-ingest.mjs`.
+  2026-05-01: completato in `web/lib/analytics.ts` (buffer ops + signal update), `web/lib/analytics-ingest.ts` (adapter flush/retry), bootstrap in `web/src/App.tsx`, env in `web/.env.example`, mock locale `web/scripts/mock-analytics-ingest.mjs`, contratto endpoint [`ANALYTICS_INGEST_CONTRACT.md`](ANALYTICS_INGEST_CONTRACT.md).
 
 ---
 
