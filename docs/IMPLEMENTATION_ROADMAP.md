@@ -37,8 +37,8 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 ## Fase C — Analytics lato client (prima del DB)
 
-- [ ] **C1 — Sessione funnel e `event_type` v1**  
-  `session_id`, `funnel_attempt_id`, eventi congelati nel concept (`page_view`, `cta_click`, `careers_*`…).
+- [x] **C1 — Sessione funnel e `event_type` v1**  
+  `web/lib/analytics.ts`: `getOrCreateSessionId()` → **`web:analytics:session-id:v1`**; funnel careers **`web:analytics:careers:funnel-attempt-id:v1`** + `clearCareersFunnelAttemptId` dopo submit; union **`AnalyticsEventType`** allineata al concept (`page_view`, `cta_click`, `careers_form_open`, `careers_step_view`, `careers_abandon`, `careers_submit`); buffer **`web:analytics:buffer:v1`** (max 200 eventi); log **`[analytics/local]`** in dev; UTM + **`cid`** denormalizzati su ogni record da campaign attribution. **`App.tsx`**: `page_view` dopo capture attribution. **`careers-form.tsx`**: `careers_form_open`, `careers_step_view` (step index), `careers_submit` con `citySlug` / `funnelAttemptId`.
 
 - [ ] **C2 — Inventario `cta_key`**  
   Costante/module condiviso allineato a [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md) (inventario CTA).
@@ -81,4 +81,4 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: **B2** completato (2026-04-30). Prossimo focus consigliato: **A4** (quinta colonna board) oppure **C1** (sessione funnel + `event_type` v1).
+Ultimo aggiornamento checklist: **C1** completato (2026-04-30). Prossimo focus consigliato: **C3** (`careers_abandon` + dedup), **C2** (`cta_key`), oppure **A4** (quinta colonna board).

@@ -12,6 +12,7 @@ import { SectionDivider } from "@/components/section-divider"
 import { CustomCursor } from "@/components/custom-cursor"
 import { siteContent } from "@/data/site-content"
 import { captureCampaignAttributionFromLocation } from "@/lib/campaign-attribution"
+import { trackAnalyticsEvent } from "@/lib/analytics"
 
 function SectionGate({
   enabled,
@@ -66,6 +67,7 @@ export default function App() {
 
   useEffect(() => {
     captureCampaignAttributionFromLocation()
+    trackAnalyticsEvent({ eventType: "page_view" })
   }, [])
 
   return (

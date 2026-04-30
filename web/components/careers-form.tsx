@@ -15,6 +15,11 @@ import {
   getStoredCampaignAttribution,
   type CampaignAttribution,
 } from "@/lib/campaign-attribution"
+import {
+  clearCareersFunnelAttemptId,
+  getOrCreateCareersFunnelAttemptId,
+  trackAnalyticsEvent,
+} from "@/lib/analytics"
 
 const LazyCalendar = lazy(async () => {
   const module = await import("@/components/ui/calendar")
@@ -241,6 +246,8 @@ export function CareersForm() {
   const stepContainerRef = useRef<HTMLDivElement>(null)
   const profilePhotoInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const funnelAttemptIdRef = useRef<string>("")
+  const formOpenTrackedRef = useRef(false)
 
   const validateStep = (step: number): boolean => {
     const newErrors = getStepErrors(step, formData)
@@ -296,11 +303,21 @@ export function CareersForm() {
         throw new Error("Errore durante l'invio della candidatura")
       }
 
+      trackAnalyticsEvent({
+        eventType: "careers_submit",
+        funnelAttemptId: funnelAttemptIdRef.current,
+        formStepIndex: currentStep,
+        citySlug: formData.officeCitySlug,
+      })
+
       toast.success("Candidatura inviata con successo. Grazie!")
       setFormData(initialFormData)
       setAvailabilityDate(getTodayDate())
       setErrors({})
       setCurrentStep(1)
+      clearCareersFunnelAttemptId()
+      funnelAttemptIdRef.current = getOrCreateCareersFunnelAttemptId()
+      formOpenTrackedRef.current = false
       if (profilePhotoInputRef.current) profilePhotoInputRef.current.value = ""
       if (fileInputRef.current) fileInputRef.current.value = ""
     } catch (error) {
@@ -376,6 +393,28 @@ export function CareersForm() {
   const errorClasses = formClassNames.error
   const radioCardClasses = formClassNames.radioCard
   const radioCardActiveClasses = formClassNames.radioCardActive
+
+  useEffect(() => {
+    funnelAttemptIdRef.current = getOrCreateCareersFunnelAttemptId()
+    if (formOpenTrackedRef.current) return
+    captureCampaignAttributionFromLocation()
+    trackAnalyticsEvent({
+      eventType: "careers_form_open",
+      funnelAttemptId: funnelAttemptIdRef.current,
+    })
+    formOpenTrackedRef.current = true
+  }, [])
+
+  useEffect(() => {
+    if (!funnelAttemptIdRef.current) {
+      funnelAttemptIdRef.current = getOrCreateCareersFunnelAttemptId()
+    }
+    trackAnalyticsEvent({
+      eventType: "careers_step_view",
+      funnelAttemptId: funnelAttemptIdRef.current,
+      formStepIndex: currentStep,
+    })
+  }, [currentStep])
 
   useEffect(() => {
     stepContainerRef.current?.focus()
