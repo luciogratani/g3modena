@@ -47,8 +47,9 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 - [x] **C3 — `careers_abandon`**  
   Implementato in `careers-form.tsx` con listener best-effort `visibilitychange` (`hidden`) + `pagehide`; dedup max 1 evento per `funnel_attempt_id` tramite chiavi sessione versionate (`abandon-sent` / `submit-sent`) in `web/lib/analytics.ts`.
 
-- [ ] **C4 — Invio eventi**  
-  Adapter: dev buffer / endpoint mock; swap successivo → `INSERT` su `analytics_events` in Supabase.
+- [x] **C4 — Invio eventi**  
+  Adapter ingest HTTP configurabile (`VITE_ANALYTICS_INGEST_URL`) con flush periodico + lifecycle (`visibilitychange`/`pagehide`) e retry su buffer locale; swap successivo → `INSERT` su `analytics_events` in Supabase.
+  2026-05-01: completato in `web/lib/analytics.ts` (buffer ops + signal update), `web/lib/analytics-ingest.ts` (adapter flush/retry), bootstrap in `web/src/App.tsx`, env in `web/.env.example`, mock locale `web/scripts/mock-analytics-ingest.mjs`.
 
 ---
 
@@ -78,8 +79,38 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 ---
 
+## Gate pre-lancio — cosa è bloccante
+
+Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers receiver, § «TODO pre-lancio effettivo», smoke Camerieri). **Bloccante** = rischio perdita dati, UX rotta in prod, o superficie admin esposta senza protezione.
+
+### Bloccanti tipici prima di produzione «vera»
+
+- [ ] **L1 — Receiver candidature (`VITE_CAREER_ENDPOINT`)**  
+  Backend/receiver legge e **persiste** dal payload web **`officeCitySlug`** e campi **attribution** (`cid`, `utmSource`, `utmMedium`, `utmCampaign`, `utmTerm`, `utmContent`). Senza questo i dati inviati dal sito sono incompleti per recruiting e campagne (vedi TODO in `careers-form` builders e DEVELOPMENT_NOTES § Web careers).
+
+- [ ] **L2 — Form contatti (`VITE_CONTACT_ENDPOINT`) + inbox admin**  
+  Endpoint che riceve il submit **operativo** (nessun errore silenzioso lato utente). Se più operatori o più macchine: **persistenza condivisa** messaggi (`contact_messages` / equivalente) e gestione stato in admin — altrimenti i messaggi restano solo nel localStorage della singola postazione (DEVELOPMENT_NOTES: «Contatti > Messaggi backend wiring»).
+
+- [ ] **L3 — Strategia contenuti sito pubblico**  
+  Una delle due: deploy **statico** da contenuti già consolidati nell’artifact di build **oppure** lettura CMS da DB **production-safe** (schema/RLS/fallback) — DEVELOPMENT_NOTES: «CMS wiring production-safe» + «Web runtime da DB».
+
+- [ ] **L4 — Sicurezza gestionale**  
+  Auth + guard sulle route admin **prima** di pubblicare URL del gestionale — DEVELOPMENT_NOTES: «Auth/protezione admin» (allinea a **E5** quando il backend è pronto).
+
+- [ ] **L5 — Persistenza pipeline candidati condivisa** *(bloccante solo se il go-live richiede team multi-dispositivo)*  
+  Board e stato candidati non possono restare solo in `localStorage` del browser — DEVELOPMENT_NOTES: «Board persistence server-side». Per demo single-browser può restare differito insieme a **E4**.
+
+### Di solito non bloccanti per un primo rilascio / demo
+
+- **C4** — flush/export analytics (buffer già presente; utile ma non impedisce il sito).
+- **A4 / A5** — quinta colonna board, dashboard KPI raffinati.
+- **D1** — audit ERD (preparazione schema; va fatto prima del backend grosso ma non blocca una landing statica).
+- Smoke test manuali Camerieri, dialog «Crea Cameriere» completo, refactor frammentazione (`CandidatiBoard`, `careers-form`, …) — qualità/tech debt, non prerequisito minimo funzionale.
+
+---
+
 ## Legenda aggiornamenti
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: **C2** completato (2026-04-30). Prossimo focus consigliato: **C4** (invio eventi) oppure **A4** (quinta colonna board).
+Ultimo aggiornamento checklist: milestone **C4** ingest analytics (2026-05-01); gate **L1–L5** e milestone **C2** (2026-04-30). Prossimo focus tecnico consigliato: **D1** (audit ERD), gate **L1–L4**, oppure **A4** / **A5** (admin UI).

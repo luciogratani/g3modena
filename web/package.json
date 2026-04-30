@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "dev:analytics-mock": "node ./scripts/mock-analytics-ingest.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },

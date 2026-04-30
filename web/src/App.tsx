@@ -13,6 +13,7 @@ import { CustomCursor } from "@/components/custom-cursor"
 import { siteContent } from "@/data/site-content"
 import { captureCampaignAttributionFromLocation } from "@/lib/campaign-attribution"
 import { trackAnalyticsEvent } from "@/lib/analytics"
+import { startAnalyticsIngestAdapter } from "@/lib/analytics-ingest"
 
 function SectionGate({
   enabled,
@@ -67,6 +68,7 @@ export default function App() {
 
   useEffect(() => {
     captureCampaignAttributionFromLocation()
+    startAnalyticsIngestAdapter()
     trackAnalyticsEvent({ eventType: "page_view" })
   }, [])
 

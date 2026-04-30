@@ -21,6 +21,7 @@ Per note operative su integrazione database/CMS: [`DB_CMS_INTEGRATION.md`](DB_CM
 - **Form**: endpoint esterni configurabili via variabili ambiente:
   - `VITE_CONTACT_ENDPOINT`
   - `VITE_CAREER_ENDPOINT`
+  - `VITE_ANALYTICS_INGEST_URL` (opzionale: se valorizzata abilita ingest eventi analytics client con flush/retry da buffer locale)
 - **Comandi principali (da root repo)**:
   - `pnpm dev:web`
   - `pnpm build:web`

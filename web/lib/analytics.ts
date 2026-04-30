@@ -10,6 +10,7 @@ export type AnalyticsEventType =
   | "careers_submit"
 
 type AnalyticsEventRecord = {
+  clientEventId?: string
   eventType: AnalyticsEventType
   occurredAt: string
   sessionId: string
@@ -25,6 +26,8 @@ type AnalyticsEventRecord = {
   utmTerm?: string
   utmContent?: string
 }
+
+export type { AnalyticsEventRecord }
 
 type TrackAnalyticsEventBaseInput = {
   funnelAttemptId?: string
@@ -46,6 +49,7 @@ type TrackAnalyticsEventInput =
 const ANALYTICS_SESSION_ID_KEY = "web:analytics:session-id:v1"
 const CAREERS_FUNNEL_ATTEMPT_ID_KEY = "web:analytics:careers:funnel-attempt-id:v1"
 const ANALYTICS_BUFFER_KEY = "web:analytics:buffer:v1"
+const ANALYTICS_BUFFER_UPDATED_EVENT = "web:analytics:buffer-updated"
 const CAREERS_ABANDON_SENT_KEY_PREFIX = "web:analytics:careers:abandon-sent:v1:"
 const CAREERS_SUBMIT_SENT_KEY_PREFIX = "web:analytics:careers:submit-sent:v1:"
 const ANALYTICS_BUFFER_MAX_ITEMS = 200
@@ -72,8 +76,73 @@ function saveBufferedEvents(events: AnalyticsEventRecord[]): void {
   window.sessionStorage.setItem(ANALYTICS_BUFFER_KEY, JSON.stringify(events.slice(-ANALYTICS_BUFFER_MAX_ITEMS)))
 }
 
+function buildEventIdentityKey(event: AnalyticsEventRecord): string {
+  if (event.clientEventId && event.clientEventId.trim()) return `id:${event.clientEventId.trim()}`
+  return JSON.stringify({
+    eventType: event.eventType,
+    occurredAt: event.occurredAt,
+    sessionId: event.sessionId,
+    funnelAttemptId: event.funnelAttemptId,
+    formStepIndex: event.formStepIndex,
+    formFieldKey: event.formFieldKey,
+    ctaKey: event.ctaKey,
+    citySlug: event.citySlug,
+    cid: event.cid,
+    utmSource: event.utmSource,
+    utmMedium: event.utmMedium,
+    utmCampaign: event.utmCampaign,
+    utmTerm: event.utmTerm,
+    utmContent: event.utmContent,
+  })
+}
+
+function notifyAnalyticsBufferUpdated(addedEvents: number, totalEvents: number): void {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(
+    new CustomEvent(ANALYTICS_BUFFER_UPDATED_EVENT, {
+      detail: {
+        addedEvents,
+        totalEvents,
+      },
+    })
+  )
+}
+
 export function getAnalyticsBufferSnapshot(): AnalyticsEventRecord[] {
   return loadBufferedEvents()
+}
+
+export function getAnalyticsBufferUpdatedEventName(): string {
+  return ANALYTICS_BUFFER_UPDATED_EVENT
+}
+
+export function removeAnalyticsEventsFromBuffer(eventsToRemove: AnalyticsEventRecord[]): number {
+  if (!eventsToRemove.length) return 0
+  const buffered = loadBufferedEvents()
+  if (!buffered.length) return 0
+
+  const removals = new Map<string, number>()
+  for (const event of eventsToRemove) {
+    const key = buildEventIdentityKey(event)
+    removals.set(key, (removals.get(key) ?? 0) + 1)
+  }
+
+  let removedCount = 0
+  const nextBuffer = buffered.filter((event) => {
+    const key = buildEventIdentityKey(event)
+    const remaining = removals.get(key) ?? 0
+    if (remaining <= 0) return true
+    removals.set(key, remaining - 1)
+    removedCount += 1
+    return false
+  })
+
+  if (removedCount > 0) {
+    saveBufferedEvents(nextBuffer)
+    notifyAnalyticsBufferUpdated(0, nextBuffer.length)
+  }
+
+  return removedCount
 }
 
 export function getOrCreateSessionId(): string {
@@ -168,6 +237,7 @@ export function trackCtaClick(ctaKey: CtaKey): AnalyticsEventRecord {
 export function trackAnalyticsEvent(input: TrackAnalyticsEventInput): AnalyticsEventRecord {
   const attribution = getStoredCampaignAttribution()
   const event: AnalyticsEventRecord = {
+    clientEventId: createId(),
     eventType: input.eventType,
     occurredAt: new Date().toISOString(),
     sessionId: getOrCreateSessionId(),
@@ -186,6 +256,7 @@ export function trackAnalyticsEvent(input: TrackAnalyticsEventInput): AnalyticsE
 
   const buffered = [...loadBufferedEvents(), event]
   saveBufferedEvents(buffered)
+  notifyAnalyticsBufferUpdated(1, buffered.length)
 
   if (import.meta.env.DEV) {
     console.info("[analytics/local]", event)
