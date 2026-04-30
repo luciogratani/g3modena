@@ -11,8 +11,8 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 - [x] **A1 — Campagne (MVP)**  
   Sidebar Marketing › Campagne, builder UTM + `cid`, anteprima creativa, metriche/demo, base URL (`VITE_PUBLIC_SITE_ORIGIN`). Nessun DB.
 
-- [ ] **A2 — Città / sedi**  
-  Gestione `cities` in admin (`slug`, `display_name`, `is_active`, `sort_order`), persistenza `localStorage` versionata, seed Modena/Sassari, evento aggiornamento per il resto dell’UI.
+- [x] **A2 — Città / sedi**  
+  Gestione locale in **Config › Sedi**: tipo `OfficeCity` (`id`, `slug`, `displayName`, `isActive`, `sortOrder`). Storage `admin:cities:v1`, evento `admin:cities:updated`, export `listActiveCities()` per Step A3. Eliminate fisiche bloccate per slug legacy `modena` / `sassari`.
 
 - [ ] **A3 — Board e sidebar candidati dinamiche**  
   Voci Candidati generate dalle città **attive**; route/board filtrate per `city_id` / slug (addio hardcode solo Modena/Sassari dove non serve più).
@@ -81,4 +81,4 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: **A1** segnato completato.
+Ultimo aggiornamento checklist: **A2** completato (2026-04-30). Prossimo focus consigliato: **A3** (sidebar/board dinamiche da `listActiveCities()`).

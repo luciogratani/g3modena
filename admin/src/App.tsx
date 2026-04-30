@@ -9,6 +9,7 @@ import {
   Megaphone,
   Users,
   HelpCircle,
+  Building2,
 } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import {
@@ -39,6 +40,7 @@ import { Dashboard } from "./components/Dashboard"
 import { CandidatiBoard } from "./components/CandidatiBoard"
 import { CamerieriPage } from "./components/camerieri/CamerieriPage"
 import { CampagnePage } from "./components/campagne/CampagnePage"
+import { CitiesPage } from "./components/cities/CitiesPage"
 import { SettingsPage } from "./components/SettingsPage"
 import { SeoSettingsPage } from "./components/SeoSettingsPage"
 import { CANDIDATES } from "./data/mockCandidates"
@@ -61,6 +63,7 @@ type Page =
   | "modenaWaiters"
   | "sassariWaiters"
   | "contactForm"
+  | "cities"
   | "settings"
 
 const PAGE_TITLES: Record<Page, string> = {
@@ -73,6 +76,7 @@ const PAGE_TITLES: Record<Page, string> = {
   modenaWaiters: "Camerieri › Modena",
   sassariWaiters: "Camerieri › Sassari",
   contactForm: "Contatti › Messaggi",
+  cities: "Config › Sedi",
   settings: "Config › Impostazioni",
 }
 
@@ -173,6 +177,8 @@ export default function App() {
             onThemePreferenceChange={setThemePreference}
           />
         )
+      case "cities":
+        return <CitiesPage />
     }
   }
 
@@ -413,6 +419,16 @@ export default function App() {
                 <CollapsibleContent>
                   <SidebarGroupContent>
                     <SidebarMenu>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          isActive={page === "cities"}
+                          tooltip="Gestione sedi / citta"
+                          onClick={() => setPage("cities")}
+                        >
+                          <Building2 />
+                          <span>Sedi</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           isActive={page === "settings"}

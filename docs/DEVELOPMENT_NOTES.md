@@ -20,6 +20,7 @@ Concept pre-coding (campagne, analytics, città + form, RLS): [`PRE_WIRING_CONCE
 - [x] Microcopy client-facing ripulita (rimosso linguaggio troppo tecnico).
 - [x] Sidebar ripulita (`Showcase` rimosso, sezione candidati semplificata, badge collegati ai dati).
 - [x] Pagina `Impostazioni` reale con tema `light|dark|auto` + persistenza + migrazione chiave legacy.
+- [x] Pagina **Marketing › Campagne** (`CampagnePage`) MVP locale (builder UTM/`cid`, card demo); contratto operativo [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md).
 
 ### Board candidature
 - [x] DnD stabile con `@dnd-kit` (riordino intra-colonna + movimenti inter-colonna).
@@ -49,6 +50,17 @@ Concept pre-coding (campagne, analytics, città + form, RLS): [`PRE_WIRING_CONCE
 ### Diagnostica Supabase
 - [x] Card `Monitor Supabase` in `Impostazioni` con check mount + retry.
 - [x] Stati e telemetria base (`Online/Offline/Config mancante/In corso`, latenza, ultimo controllo).
+
+### Sedi / cities (MVP locale, pre-DB)
+- [x] Pagina **Config › Sedi** (`CitiesPage`) integrata in `admin/src/App.tsx`.
+- [x] Modello `OfficeCity` (`City` alias): `id`, `slug`, `displayName`, `isActive`, `sortOrder` — `admin/src/components/cities/types.ts`.
+- [x] Storage versionato `admin/src/components/cities/storage.ts`:
+  - chiave **`admin:cities:v1`** (`CITIES_STORAGE_KEY`);
+  - evento UI **`admin:cities:updated`** (`CITIES_UPDATED_EVENT`);
+  - seed iniziale **modena**, **sassari**; parser/sanitizer difensivo + fallback se JSON corrotto.
+- [x] API storage esposta: `loadCities`, **`listActiveCities()`** (per Step successivo: sidebar Candidati/Camerieri dinamici), CRUD + `moveCity`, `deleteCity`, helper `isCityDeleteLocked` / `canDeleteCity`.
+- [x] UX: slug univoca; conferma su cambio slug in modifica; attiva/disattiva; ordinamento su/giù; empty state ed errori accessibili.
+- **Limite attuale:** eliminazione **non consentita** per sedi legacy con slug `modena` e `sassari` (insieme `LEGACY_LOCKED_SLUGS` nello storage).
 
 ### Camerieri (MVP CRM locale)
 
@@ -135,7 +147,8 @@ Integrazioni cross-modulo:
 - **Auth policy**: fuori scope finche non parte lo step sicurezza.
 - **Campagne status policy**: usare `first_data_at` (primo `page_view` con `cid`) e `last_data_at` (ultimo evento attribuito) come uniche fonti canoniche.
 - **Campagne query policy**: derivare `No dati|Attiva|Disattiva` a runtime (finestra 5 giorni) senza persistere `status` in colonna nella v1.
-- **Campagne identity policy**: `campaigns.id` (uuid) e` l'ID interno canonico; `cid` resta token corto pubblico per link tracking.
+- **Campagne identity policy**: `campaigns.id` (uuid) è l’ID interno canonico; `cid` resta token corto pubblico per link tracking.
+- **Cities legacy policy**: gli slug seed `modena` / `sassari` non sono eliminabili da UI finché board/camerieri dipendono da compatibilità locale; disattivazione consentita.
 
 ---
 
@@ -171,6 +184,7 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 | Recap giornaliero | `admin:candidates:daily-recap:dismissed-on` | Preferenza locale, non DB v1 |
 | Messaggi contatti | `admin:contact-messages:v1` + evento `admin:contacts:messages-updated` | `contact_messages` |
 | Camerieri CRM | `admin:camerieri:crm:v1` + evento `admin:camerieri:updated` | `staff` |
+| Sedi | `admin:cities:v1` + evento `admin:cities:updated` | `cities` |
 | Board update | evento `admin:candidates:board-updated` | Sostituire con invalidazione/query refresh adapter |
 | Tema admin | `admin-theme-preference` (`admin-theme` legacy) | Resta localStorage |
 
