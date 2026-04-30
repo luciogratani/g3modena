@@ -37,6 +37,8 @@ type TrackAnalyticsEventInput = {
 const ANALYTICS_SESSION_ID_KEY = "web:analytics:session-id:v1"
 const CAREERS_FUNNEL_ATTEMPT_ID_KEY = "web:analytics:careers:funnel-attempt-id:v1"
 const ANALYTICS_BUFFER_KEY = "web:analytics:buffer:v1"
+const CAREERS_ABANDON_SENT_KEY_PREFIX = "web:analytics:careers:abandon-sent:v1:"
+const CAREERS_SUBMIT_SENT_KEY_PREFIX = "web:analytics:careers:submit-sent:v1:"
 const ANALYTICS_BUFFER_MAX_ITEMS = 200
 
 function createId(): string {
@@ -86,6 +88,65 @@ export function getOrCreateCareersFunnelAttemptId(): string {
 export function clearCareersFunnelAttemptId(): void {
   if (typeof window === "undefined") return
   window.sessionStorage.removeItem(CAREERS_FUNNEL_ATTEMPT_ID_KEY)
+}
+
+function getCareersAttemptFlagKey(prefix: string, funnelAttemptId: string): string {
+  return `${prefix}${funnelAttemptId}`
+}
+
+function isCareersAttemptFlagSet(prefix: string, funnelAttemptId: string): boolean {
+  if (typeof window === "undefined") return false
+  if (!funnelAttemptId.trim()) return false
+  return (
+    window.sessionStorage.getItem(getCareersAttemptFlagKey(prefix, funnelAttemptId)) === "1"
+  )
+}
+
+function setCareersAttemptFlag(prefix: string, funnelAttemptId: string): void {
+  if (typeof window === "undefined") return
+  if (!funnelAttemptId.trim()) return
+  window.sessionStorage.setItem(getCareersAttemptFlagKey(prefix, funnelAttemptId), "1")
+}
+
+type TrackCareersSubmitInput = {
+  funnelAttemptId: string
+  formStepIndex: number
+  citySlug: string
+}
+
+type TrackCareersAbandonIfNeededInput = {
+  funnelAttemptId: string
+  formStepIndex: number
+  formFieldKey?: string
+}
+
+export function trackCareersSubmit(input: TrackCareersSubmitInput): AnalyticsEventRecord {
+  const event = trackAnalyticsEvent({
+    eventType: "careers_submit",
+    funnelAttemptId: input.funnelAttemptId,
+    formStepIndex: input.formStepIndex,
+    citySlug: input.citySlug,
+  })
+  setCareersAttemptFlag(CAREERS_SUBMIT_SENT_KEY_PREFIX, input.funnelAttemptId)
+  return event
+}
+
+export function trackCareersAbandonIfNeeded(
+  input: TrackCareersAbandonIfNeededInput
+): AnalyticsEventRecord | null {
+  const attemptId = input.funnelAttemptId.trim()
+  if (!attemptId) return null
+  if (isCareersAttemptFlagSet(CAREERS_SUBMIT_SENT_KEY_PREFIX, attemptId)) return null
+  if (isCareersAttemptFlagSet(CAREERS_ABANDON_SENT_KEY_PREFIX, attemptId)) return null
+
+  const event = trackAnalyticsEvent({
+    eventType: "careers_abandon",
+    funnelAttemptId: attemptId,
+    formStepIndex: input.formStepIndex,
+    formFieldKey: input.formFieldKey,
+  })
+  setCareersAttemptFlag(CAREERS_ABANDON_SENT_KEY_PREFIX, attemptId)
+  return event
 }
 
 export function trackAnalyticsEvent(input: TrackAnalyticsEventInput): AnalyticsEventRecord {

@@ -43,8 +43,8 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 - [ ] **C2 — Inventario `cta_key`**  
   Costante/module condiviso allineato a [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md) (inventario CTA).
 
-- [ ] **C3 — `careers_abandon`**  
-  Regola step-level + dedup (`visibilitychange` / `pagehide`, flag sessione).
+- [x] **C3 — `careers_abandon`**  
+  Implementato in `careers-form.tsx` con listener best-effort `visibilitychange` (`hidden`) + `pagehide`; dedup max 1 evento per `funnel_attempt_id` tramite chiavi sessione versionate (`abandon-sent` / `submit-sent`) in `web/lib/analytics.ts`.
 
 - [ ] **C4 — Invio eventi**  
   Adapter: dev buffer / endpoint mock; swap successivo → `INSERT` su `analytics_events` in Supabase.
@@ -81,4 +81,4 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: **C1** completato (2026-04-30). Prossimo focus consigliato: **C3** (`careers_abandon` + dedup), **C2** (`cta_key`), oppure **A4** (quinta colonna board).
+Ultimo aggiornamento checklist: **C3** completato (2026-04-30). Prossimo focus consigliato: **C2** (`cta_key`), **C4** (invio eventi), oppure **A4** (quinta colonna board).
