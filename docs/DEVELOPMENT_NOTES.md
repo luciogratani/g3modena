@@ -11,6 +11,16 @@ Piano dati condiviso con `web` (schema Supabase previsto, sequenza pre-wiring): 
 
 Concept pre-coding (campagne, analytics, città + form, RLS): [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md).
 
+Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md).
+
+---
+
+## Web pubblico — Form candidature (`careers`)
+
+- [x] Step dedicato **sede di candidatura** (step 1 di 5): scelta solo tra sedi del mirror **`web/data/application-office-cities.ts`** (seed `modena`, `sassari`; aggiornare manualmente quando cambiano sedi attive in admin).
+- [x] Campo **`officeCitySlug`** nel payload (**JSON** e **multipart**) da `buildCareerJsonPayload` / `buildCareerMultipartPayload`; **`city`** = residenza/domicilio (step anagrafici).
+- [ ] Receiver HTTP (`VITE_CAREER_ENDPOINT`): leggere e persistere **`officeCitySlug`**; validare slug contro elenco sedi attive quando esisterà sorgente canonica (vedi TODO nei builder).
+
 ---
 
 ## Stato attuale (pre-lancio)

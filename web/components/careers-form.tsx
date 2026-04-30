@@ -1,4 +1,4 @@
-import { Suspense, lazy, useRef, useState } from "react"
+import { Suspense, lazy, useEffect, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { fadeInUp, staggerContainer } from "@/lib/animations"
 import { AnimatedSection } from "@/components/animated-section"
@@ -9,6 +9,7 @@ import { formClassNames, isValidEmail } from "@/lib/form-helpers"
 import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { compressProfilePhoto } from "@/lib/image-compression"
+import { applicationOfficeCities } from "@/data/application-office-cities"
 
 const LazyCalendar = lazy(async () => {
   const module = await import("@/components/ui/calendar")
@@ -41,6 +42,7 @@ function formatDateLabel(date: Date): string {
 }
 
 interface CareerFormData {
+  officeCitySlug: string
   fullName: string
   email: string
   phone: string
@@ -60,6 +62,7 @@ interface CareerFormData {
 }
 
 const initialFormData: CareerFormData = {
+  officeCitySlug: "",
   fullName: "",
   email: "",
   phone: "",
@@ -78,7 +81,7 @@ const initialFormData: CareerFormData = {
   privacyConsent: "",
 }
 
-const TOTAL_STEPS = 4
+const TOTAL_STEPS = 5
 const educationOptions = [
   "Liceo",
   "Diploma tecnico/professionale",
@@ -94,6 +97,12 @@ const allowFreeStepNavigation =
   import.meta.env.DEV && import.meta.env.VITE_ALLOW_FREE_STEP_NAVIGATION === "true"
 const preferMultipartSubmission =
   import.meta.env.VITE_CAREER_SUBMIT_FORMAT === "multipart"
+const activeApplicationOfficeCities = [...applicationOfficeCities].sort(
+  (a, b) => a.sortOrder - b.sortOrder
+)
+const activeApplicationOfficeCitySlugs = new Set(
+  activeApplicationOfficeCities.map((city) => city.slug)
+)
 
 function getStepErrors(
   step: number,
@@ -102,6 +111,14 @@ function getStepErrors(
   const newErrors: Partial<Record<keyof CareerFormData, string>> = {}
 
   if (step === 1) {
+    if (!formData.officeCitySlug) {
+      newErrors.officeCitySlug = "Seleziona una sede per la candidatura"
+    } else if (!activeApplicationOfficeCitySlugs.has(formData.officeCitySlug)) {
+      newErrors.officeCitySlug = "La sede selezionata non è valida"
+    }
+  }
+
+  if (step === 2) {
     const fullName = formData.fullName.trim()
     if (!fullName) {
       newErrors.fullName = "Il nome è obbligatorio"
@@ -169,7 +186,7 @@ function getStepErrors(
     }
   }
 
-  if (step === 2) {
+  if (step === 3) {
     if (!formData.educationLevel) {
       newErrors.educationLevel = "Seleziona un titolo di studio"
     } else if (!educationOptions.includes(formData.educationLevel)) {
@@ -191,13 +208,13 @@ function getStepErrors(
     }
   }
 
-  if (step === 3) {
+  if (step === 4) {
     if (!formData.jobAttraction.trim()) {
       newErrors.jobAttraction = "Questo campo è obbligatorio"
     }
   }
 
-  if (step === 4 && formData.privacyConsent !== "accepted") {
+  if (step === 5 && formData.privacyConsent !== "accepted") {
     newErrors.privacyConsent =
       "Per inviare la candidatura è necessario accettare il trattamento dati"
   }
@@ -216,13 +233,21 @@ export function CareersForm() {
   const [availabilityPopoverOpen, setAvailabilityPopoverOpen] = useState(false)
   const [availabilityDate, setAvailabilityDate] = useState<Date>(() => getTodayDate())
   const [submitting, setSubmitting] = useState(false)
+  const stepContainerRef = useRef<HTMLDivElement>(null)
   const profilePhotoInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const validateStep = (step: number): boolean => {
     const newErrors = getStepErrors(step, formData)
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    const isValid = Object.keys(newErrors).length === 0
+    if (!isValid) {
+      requestAnimationFrame(() => {
+        const firstInvalidElement = document.querySelector<HTMLElement>('[aria-invalid="true"]')
+        firstInvalidElement?.focus()
+      })
+    }
+    return isValid
   }
 
   const validateAllSteps = (): boolean => {
@@ -231,6 +256,7 @@ export function CareersForm() {
       ...getStepErrors(2, formData),
       ...getStepErrors(3, formData),
       ...getStepErrors(4, formData),
+      ...getStepErrors(5, formData),
     }
     setErrors(mergedErrors)
     return Object.keys(mergedErrors).length === 0
@@ -341,6 +367,10 @@ export function CareersForm() {
   const radioCardClasses = formClassNames.radioCard
   const radioCardActiveClasses = formClassNames.radioCardActive
 
+  useEffect(() => {
+    stepContainerRef.current?.focus()
+  }, [currentStep])
+
   return (
     <section
       id="careers"
@@ -372,12 +402,85 @@ export function CareersForm() {
             <p className="sr-only" aria-live="polite">
               Step {currentStep} di {TOTAL_STEPS}
             </p>
+            <p className="mb-6 text-center text-[11px] uppercase tracking-[0.2em] text-muted-foreground/80">
+              Step {currentStep} di {TOTAL_STEPS}
+            </p>
             {currentStep === 1 && (
               <motion.div
+                ref={stepContainerRef}
+                tabIndex={-1}
                 initial="hidden"
                 animate="visible"
                 variants={staggerContainer}
-                className="grid grid-cols-1 gap-8 sm:grid-cols-2"
+                className="grid grid-cols-1 gap-8 outline-none"
+              >
+                <motion.div variants={fadeInUp}>
+                  <h3 className="text-xl font-light text-foreground">
+                    Per quale sede ti candidi?
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Seleziona la sede per cui vuoi candidarti.
+                  </p>
+                </motion.div>
+
+                <motion.div variants={fadeInUp}>
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="career-office-city-label"
+                    className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                  >
+                    <p id="career-office-city-label" className="sr-only">
+                      Sede di candidatura
+                    </p>
+                    {activeApplicationOfficeCities.map((officeCity) => {
+                      const active = formData.officeCitySlug === officeCity.slug
+                      return (
+                        <button
+                          key={officeCity.slug}
+                          id={`career-office-city-${officeCity.slug}`}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          aria-invalid={Boolean(errors.officeCitySlug)}
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              officeCitySlug: officeCity.slug,
+                            }))
+                            if (errors.officeCitySlug) {
+                              setErrors((prev) => ({ ...prev, officeCitySlug: undefined }))
+                            }
+                          }}
+                          className={`${radioCardClasses} justify-start text-left ${
+                            active ? radioCardActiveClasses : ""
+                          }`}
+                        >
+                          {officeCity.displayName}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p
+                    className={`${errorClasses} ${
+                      errors.officeCitySlug
+                        ? "translate-y-0 opacity-100"
+                        : "-translate-y-1 opacity-0"
+                    }`}
+                  >
+                    {errors.officeCitySlug ?? "\u00A0"}
+                  </p>
+                </motion.div>
+              </motion.div>
+            )}
+
+            {currentStep === 2 && (
+              <motion.div
+                ref={stepContainerRef}
+                tabIndex={-1}
+                initial="hidden"
+                animate="visible"
+                variants={staggerContainer}
+                className="grid grid-cols-1 gap-8 sm:grid-cols-2 outline-none"
               >
                 <motion.div variants={fadeInUp}>
                   <div className="relative">
@@ -520,7 +623,9 @@ export function CareersForm() {
                     >
                       <PopoverTrigger asChild>
                         <button
+                          id="career-availability"
                           type="button"
+                          aria-invalid={Boolean(errors.availability)}
                           onPointerEnter={preloadCalendar}
                           onFocus={preloadCalendar}
                           className="flex w-full cursor-pointer items-center justify-between border-b border-border bg-transparent px-0 pb-2 pt-6 text-left text-sm text-foreground outline-none transition-[border-color,box-shadow,color] duration-300 focus:border-gold focus:shadow-[0_10px_30px_-24px_hsl(var(--gold)/0.85)]"
@@ -649,12 +754,14 @@ export function CareersForm() {
               </motion.div>
             )}
 
-            {currentStep === 2 && (
+            {currentStep === 3 && (
               <motion.div
+                ref={stepContainerRef}
+                tabIndex={-1}
                 initial="hidden"
                 animate="visible"
                 variants={staggerContainer}
-                className="grid grid-cols-1 gap-8 sm:grid-cols-2"
+                className="grid grid-cols-1 gap-8 sm:grid-cols-2 outline-none"
               >
                 <motion.div variants={fadeInUp}>
                   <div className="relative">
@@ -664,9 +771,11 @@ export function CareersForm() {
                     >
                       <PopoverTrigger asChild>
                         <button
+                          id="career-educationLevel"
                           type="button"
                           role="combobox"
                           aria-expanded={educationPopoverOpen}
+                          aria-invalid={Boolean(errors.educationLevel)}
                           className="flex w-full cursor-pointer items-center justify-between border-b border-border bg-transparent px-0 pb-2 pt-6 text-left text-sm text-foreground outline-none transition-[border-color,box-shadow,color] duration-300 focus:border-gold focus:shadow-[0_10px_30px_-24px_hsl(var(--gold)/0.85)]"
                         >
                           <span
@@ -739,9 +848,11 @@ export function CareersForm() {
                     >
                       <PopoverTrigger asChild>
                         <button
+                          id="career-languages"
                           type="button"
                           role="combobox"
                           aria-expanded={languagesPopoverOpen}
+                          aria-invalid={Boolean(errors.languages)}
                           className="flex w-full cursor-pointer items-center justify-between border-b border-border bg-transparent px-0 pb-2 pt-6 text-left text-sm text-foreground outline-none transition-[border-color,box-shadow,color] duration-300 focus:border-gold focus:shadow-[0_10px_30px_-24px_hsl(var(--gold)/0.85)]"
                         >
                           <span
@@ -821,10 +932,12 @@ export function CareersForm() {
                       const active = formData.isAwayStudent === option
                       return (
                         <button
+                          id={`career-isAwayStudent-${option}`}
                           key={option}
                           type="button"
                           role="radio"
                           aria-checked={active}
+                          aria-invalid={Boolean(errors.isAwayStudent)}
                           onClick={() =>
                             setFormData((prev) => ({ ...prev, isAwayStudent: option }))
                           }
@@ -864,10 +977,12 @@ export function CareersForm() {
                       const active = formData.hasDriverLicense === option
                       return (
                         <button
+                          id={`career-hasDriverLicense-${option}`}
                           key={option}
                           type="button"
                           role="radio"
                           aria-checked={active}
+                          aria-invalid={Boolean(errors.hasDriverLicense)}
                           onClick={() =>
                             setFormData((prev) => ({ ...prev, hasDriverLicense: option }))
                           }
@@ -907,10 +1022,12 @@ export function CareersForm() {
                       const active = formData.hasRelevantExperience === option
                       return (
                         <button
+                          id={`career-hasRelevantExperience-${option}`}
                           key={option}
                           type="button"
                           role="radio"
                           aria-checked={active}
+                          aria-invalid={Boolean(errors.hasRelevantExperience)}
                           onClick={() =>
                             setFormData((prev) => ({
                               ...prev,
@@ -939,12 +1056,14 @@ export function CareersForm() {
               </motion.div>
             )}
 
-            {currentStep === 3 && (
+            {currentStep === 4 && (
               <motion.div
+                ref={stepContainerRef}
+                tabIndex={-1}
                 initial="hidden"
                 animate="visible"
                 variants={staggerContainer}
-                className="grid grid-cols-1 gap-8"
+                className="grid grid-cols-1 gap-8 outline-none"
               >
                 <motion.div variants={fadeInUp}>
                   <div className="relative">
@@ -1005,12 +1124,14 @@ export function CareersForm() {
               </motion.div>
             )}
 
-            {currentStep === 4 && (
+            {currentStep === 5 && (
               <motion.div
+                ref={stepContainerRef}
+                tabIndex={-1}
                 initial="hidden"
                 animate="visible"
                 variants={staggerContainer}
-                className="grid grid-cols-1 gap-8"
+                className="grid grid-cols-1 gap-8 outline-none"
               >
                 <motion.div variants={fadeInUp} className="border border-border p-6">
                   <p className="text-sm leading-relaxed text-muted-foreground">
@@ -1034,9 +1155,11 @@ export function CareersForm() {
                     className="flex flex-wrap gap-2"
                   >
                     <button
+                      id="career-privacyConsent-accepted"
                       type="button"
                       role="radio"
                       aria-checked={formData.privacyConsent === "accepted"}
+                      aria-invalid={Boolean(errors.privacyConsent)}
                       onClick={() =>
                         setFormData((prev) => ({ ...prev, privacyConsent: "accepted" }))
                       }
@@ -1049,9 +1172,11 @@ export function CareersForm() {
                       Accetto
                     </button>
                     <button
+                      id="career-privacyConsent-declined"
                       type="button"
                       role="radio"
                       aria-checked={formData.privacyConsent === "declined"}
+                      aria-invalid={Boolean(errors.privacyConsent)}
                       onClick={() =>
                         setFormData((prev) => ({ ...prev, privacyConsent: "declined" }))
                       }
@@ -1135,6 +1260,8 @@ async function buildCareerJsonPayload(formData: CareerFormData) {
       : ""
 
   return {
+    // TODO(wiring): backend receiver must persist this explicit office city slug.
+    officeCitySlug: formData.officeCitySlug,
     fullName: formData.fullName,
     email: formData.email,
     phone: formData.phone,
@@ -1158,6 +1285,8 @@ async function buildCareerJsonPayload(formData: CareerFormData) {
 
 function buildCareerMultipartPayload(formData: CareerFormData): FormData {
   const payload = new FormData()
+  // TODO(wiring): backend receiver must persist this explicit office city slug.
+  payload.set("officeCitySlug", formData.officeCitySlug)
   payload.set("fullName", formData.fullName)
   payload.set("email", formData.email)
   payload.set("phone", formData.phone)

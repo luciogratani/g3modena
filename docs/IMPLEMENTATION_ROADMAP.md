@@ -27,8 +27,8 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 ## Fase B — Sito pubblico (`web`)
 
-- [ ] **B1 — Step form “Scegli la città”**  
-  Select popolata da stessa fonte concettuale delle città (fino al DB: mock condiviso o fetch da adapter).
+- [x] **B1 — Step form “Scegli la città” (sede di candidatura)**  
+  Mirror locale **`web/data/application-office-cities.ts`** (`slug`, `displayName`, `sortOrder`), allineamento manuale con admin finché non c’è API `cities`. Nuovo **step 1** in `careers-form.tsx` (“Per quale sede ti candidi?”), **5 step** totali; **`city`** resta **residenza** negli step successivi. Payload JSON + multipart: **`officeCitySlug`**. Focus/accessibilità migliorati tra step.
 
 - [ ] **B2 — Propagazione UTM + `cid`**  
   Lettura query string in landing → persistenza nel funnel → invio con submit candidatura (allineato a [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md) se applicabile).
@@ -81,4 +81,4 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: **A3** completato (2026-04-30). Prossimo focus consigliato: **A4** (quinta colonna board) oppure **B1** (`web`/step città).
+Ultimo aggiornamento checklist: **B1** completato (2026-04-30). Prossimo focus consigliato: **B2** (UTM/`cid` sul web) oppure **A4** (quinta colonna board).
