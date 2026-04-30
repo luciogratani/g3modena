@@ -19,7 +19,9 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 
 - [x] Step dedicato **sede di candidatura** (step 1 di 5): scelta solo tra sedi del mirror **`web/data/application-office-cities.ts`** (seed `modena`, `sassari`; aggiornare manualmente quando cambiano sedi attive in admin).
 - [x] Campo **`officeCitySlug`** nel payload (**JSON** e **multipart**) da `buildCareerJsonPayload` / `buildCareerMultipartPayload`; **`city`** = residenza/domicilio (step anagrafici).
+- [x] **B2 UTM + `cid`**: query string (`cid`, `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`) catturata da `web/lib/campaign-attribution.ts`, persistita in `sessionStorage` (`web:campaign-attribution:v1`) e propagata al submit candidature.
 - [ ] Receiver HTTP (`VITE_CAREER_ENDPOINT`): leggere e persistere **`officeCitySlug`**; validare slug contro elenco sedi attive quando esisterà sorgente canonica (vedi TODO nei builder).
+- [ ] Receiver HTTP (`VITE_CAREER_ENDPOINT`): leggere e persistere anche i nuovi campi attribution (`cid`, `utmSource`, `utmMedium`, `utmCampaign`, `utmTerm`, `utmContent`) oltre a `officeCitySlug`.
 
 ---
 

@@ -10,6 +10,11 @@ import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { compressProfilePhoto } from "@/lib/image-compression"
 import { applicationOfficeCities } from "@/data/application-office-cities"
+import {
+  captureCampaignAttributionFromLocation,
+  getStoredCampaignAttribution,
+  type CampaignAttribution,
+} from "@/lib/campaign-attribution"
 
 const LazyCalendar = lazy(async () => {
   const module = await import("@/components/ui/calendar")
@@ -267,6 +272,11 @@ export function CareersForm() {
     if (!validateAllSteps()) return
     setSubmitting(true)
     try {
+      const campaignAttribution = captureCampaignAttributionFromLocation()
+      const attributionForSubmit =
+        Object.keys(campaignAttribution).length > 0
+          ? campaignAttribution
+          : getStoredCampaignAttribution()
       const endpoint = import.meta.env.VITE_CAREER_ENDPOINT as string | undefined
       if (!endpoint) {
         throw new Error("Endpoint candidature non configurato (VITE_CAREER_ENDPOINT)")
@@ -275,12 +285,12 @@ export function CareersForm() {
       const response = preferMultipartSubmission
         ? await fetch(endpoint, {
             method: "POST",
-            body: buildCareerMultipartPayload(formData),
+            body: buildCareerMultipartPayload(formData, attributionForSubmit),
           })
         : await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(await buildCareerJsonPayload(formData)),
+            body: JSON.stringify(await buildCareerJsonPayload(formData, attributionForSubmit)),
           })
       if (!response.ok) {
         throw new Error("Errore durante l'invio della candidatura")
@@ -1252,7 +1262,10 @@ function fileToDataUrl(file: File | null): Promise<string> {
   })
 }
 
-async function buildCareerJsonPayload(formData: CareerFormData) {
+async function buildCareerJsonPayload(
+  formData: CareerFormData,
+  attribution: CampaignAttribution,
+) {
   const profilePhotoDataUrl = await fileToDataUrl(formData.profilePhoto)
   const cvPreviewUrl =
     formData.cv && formData.cv.type === "application/pdf"
@@ -1280,10 +1293,19 @@ async function buildCareerJsonPayload(formData: CareerFormData) {
     jobAttraction: formData.jobAttraction,
     hasRelevantExperience: formData.hasRelevantExperience,
     privacyConsentAccepted: formData.privacyConsent === "accepted",
+    cid: attribution.cid ?? "",
+    utmSource: attribution.utmSource ?? "",
+    utmMedium: attribution.utmMedium ?? "",
+    utmCampaign: attribution.utmCampaign ?? "",
+    utmTerm: attribution.utmTerm ?? "",
+    utmContent: attribution.utmContent ?? "",
   }
 }
 
-function buildCareerMultipartPayload(formData: CareerFormData): FormData {
+function buildCareerMultipartPayload(
+  formData: CareerFormData,
+  attribution: CampaignAttribution,
+): FormData {
   const payload = new FormData()
   // TODO(wiring): backend receiver must persist this explicit office city slug.
   payload.set("officeCitySlug", formData.officeCitySlug)
@@ -1304,6 +1326,12 @@ function buildCareerMultipartPayload(formData: CareerFormData): FormData {
     "privacyConsentAccepted",
     String(formData.privacyConsent === "accepted")
   )
+  if (attribution.cid) payload.set("cid", attribution.cid)
+  if (attribution.utmSource) payload.set("utmSource", attribution.utmSource)
+  if (attribution.utmMedium) payload.set("utmMedium", attribution.utmMedium)
+  if (attribution.utmCampaign) payload.set("utmCampaign", attribution.utmCampaign)
+  if (attribution.utmTerm) payload.set("utmTerm", attribution.utmTerm)
+  if (attribution.utmContent) payload.set("utmContent", attribution.utmContent)
 
   if (formData.profilePhoto) {
     payload.set("profilePhoto", formData.profilePhoto, formData.profilePhoto.name)

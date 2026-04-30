@@ -11,6 +11,7 @@ import { Footer } from "@/components/footer"
 import { SectionDivider } from "@/components/section-divider"
 import { CustomCursor } from "@/components/custom-cursor"
 import { siteContent } from "@/data/site-content"
+import { captureCampaignAttributionFromLocation } from "@/lib/campaign-attribution"
 
 function SectionGate({
   enabled,
@@ -61,6 +62,10 @@ export default function App() {
     if (seo.canonicalUrl.trim()) {
       upsertCanonicalTag(seo.canonicalUrl.trim())
     }
+  }, [])
+
+  useEffect(() => {
+    captureCampaignAttributionFromLocation()
   }, [])
 
   return (
