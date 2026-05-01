@@ -53,6 +53,13 @@ export const DISCARD_REASON_LABELS: Record<DiscardReasonKey, string> = {
 }
 
 export type CandidateCity = "sassari" | "modena"
+/**
+ * Slug della sede di candidatura. Storicamente union stretta
+ * (`CandidateCity`), oggi widened a stringa generica per supportare la
+ * board parametrizzata (vedi A3 in `IMPLEMENTATION_ROADMAP.md`) e le
+ * sedi dinamiche caricate da `public.cities`.
+ */
+export type CandidateCitySlug = string
 export type InterviewAvailability = "mattina" | "pomeriggio"
 export type InterviewOutcome = "da_fare" | "positivo" | "negativo" | "in_attesa_feedback"
 export type TrainingTrack = "pratica" | "teoria" | "misto"
@@ -63,8 +70,10 @@ export interface Candidate {
   created_at: string
   firstName: string
   lastName: string
-  candidateCity: CandidateCity
+  candidateCity: CandidateCitySlug
   profileImage: string
+  /** Chiave oggetto Storage (`careers-photos`) quando la riga DB ha `profile_photo_path`; la UI puo' usare `profileImage` come URL firmato temporaneo. */
+  profilePhotoStoragePath?: string | null
   email: string
   phone: string
   birthYear: number
@@ -103,6 +112,7 @@ export interface Candidate {
   discardReasonNote?: string
   discardedAt?: string
   discardReturnStatus?: DiscardReturnStatus
+  kanbanRank?: number
 }
 
 export const KANBAN_COLUMNS: { id: CandidateStatus; label: string }[] = [

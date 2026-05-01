@@ -46,8 +46,8 @@ import { CITIES_UPDATED_EVENT, listActiveCities } from "./components/cities/stor
 import type { OfficeCity } from "./components/cities/types"
 import { SettingsPage } from "./components/SettingsPage"
 import { SeoSettingsPage } from "./components/SeoSettingsPage"
-import { CANDIDATES, type Candidate } from "./data/mockCandidates"
-import { createInitialBoardState, localStorageBoardAdapter } from "@/src/components/candidati-board/board-utils"
+import { countNewCandidatesByCity } from "./components/candidati-board/candidates-repository"
+import type { CandidateCity } from "./data/mockCandidates"
 import {
   applyResolvedThemeMode,
   getInitialThemePreference,
@@ -89,20 +89,6 @@ function toLabelFromSlug(slug: string): string {
     .join(" ")
 }
 
-function getNewCandidatesByCityCounts(activeCitySlugs: string[]) {
-  const state = localStorageBoardAdapter.load(CANDIDATES) ?? createInitialBoardState(CANDIDATES)
-  const counts: Record<string, number> = Object.fromEntries(activeCitySlugs.map((slug) => [slug, 0]))
-
-  for (const candidateId of state.columns.nuovo) {
-    const candidate = state.byId[candidateId]
-    if (!candidate) continue
-    if (typeof counts[candidate.candidateCity] === "number") {
-      counts[candidate.candidateCity] += 1
-    }
-  }
-  return counts
-}
-
 function getPageTitle(page: Page): string {
   if (page.kind === "static") return STATIC_PAGE_TITLES[page.value]
   if (page.kind === "candidates") return `Candidati › ${toLabelFromSlug(page.citySlug)} › Board`
@@ -118,9 +104,7 @@ export default function App() {
   const [themePreference, setThemePreference] = useState<ThemePreference>(getInitialThemePreference)
   const [activeCities, setActiveCities] = useState<OfficeCity[]>([])
   const activeCitySlugs = useMemo(() => activeCities.map((city) => city.slug), [activeCities])
-  const [newCandidatesByCity, setNewCandidatesByCity] = useState<Record<string, number>>(() =>
-    getNewCandidatesByCityCounts(activeCitySlugs),
-  )
+  const [newCandidatesByCity, setNewCandidatesByCity] = useState<Record<string, number>>({})
   const [newContactMessagesCount, setNewContactMessagesCount] = useState(getNewContactMessagesCount)
   const waiterCities = useMemo(
     () => activeCities.filter((city) => SUPPORTED_WAITER_CITY_SLUGS.has(city.slug)),
@@ -174,12 +158,18 @@ export default function App() {
   }, [themePreference])
 
   useEffect(() => {
+    let cancelled = false
+
     async function refreshCandidateCounts() {
       try {
         const cities = await listActiveCities()
+        if (cancelled) return
         setActiveCities(cities)
-        setNewCandidatesByCity(getNewCandidatesByCityCounts(cities.map((city) => city.slug)))
+        const counts = await countNewCandidatesByCity(cities.map((city) => city.slug))
+        if (cancelled) return
+        setNewCandidatesByCity(counts)
       } catch {
+        if (cancelled) return
         setActiveCities([])
         setNewCandidatesByCity({})
       }
@@ -189,12 +179,11 @@ export default function App() {
     window.addEventListener("admin:candidates:board-updated", refreshCandidateCounts)
     window.addEventListener(CITIES_UPDATED_EVENT, refreshCandidateCounts)
     window.addEventListener("focus", refreshCandidateCounts)
-    window.addEventListener("storage", refreshCandidateCounts)
     return () => {
+      cancelled = true
       window.removeEventListener("admin:candidates:board-updated", refreshCandidateCounts)
       window.removeEventListener(CITIES_UPDATED_EVENT, refreshCandidateCounts)
       window.removeEventListener("focus", refreshCandidateCounts)
-      window.removeEventListener("storage", refreshCandidateCounts)
     }
   }, [])
 
@@ -238,7 +227,7 @@ export default function App() {
       if (!SUPPORTED_WAITER_CITY_SLUGS.has(page.citySlug)) {
         return null
       }
-      return <CamerieriPage city={page.citySlug as Candidate["candidateCity"]} />
+      return <CamerieriPage city={page.citySlug as CandidateCity} />
     }
 
     switch (page.value) {

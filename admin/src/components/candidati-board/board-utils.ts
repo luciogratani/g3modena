@@ -2,14 +2,18 @@
  * Candidate Board low-level utilities and shared types.
  *
  * Responsibilities:
- * - board state shape and versioned local persistence;
+ * - board state shape (in-memory only);
  * - movement/reorder helpers;
- * - migration-safe hydration logic;
+ * - training sub-lane derivation from candidate rows (post DB load);
  * - shared filter-related storage keys/constants.
+ *
+ * Persistence note (E4 / L5): la board non vive piu' su `localStorage`.
+ * La sorgente condivisa e' `public.candidates` via
+ * `candidates-repository.ts`; questo modulo resta puro (state shape,
+ * transitions, cleanup metadata) per essere testato senza I/O.
  */
 import { arrayMove } from "@dnd-kit/sortable"
 import {
-  CANDIDATES,
   KANBAN_COLUMNS,
   type Candidate,
   type CandidateStatus,
@@ -27,11 +31,6 @@ export type CandidateBoardState = {
   byId: Record<string, Candidate>
   columns: Record<CandidateStatus, string[]>
   trainingSublanes: TrainingSublane[]
-}
-
-export type CandidateBoardPersistenceAdapter = {
-  load: (candidates: Candidate[]) => CandidateBoardState | null
-  save: (state: CandidateBoardState) => void
 }
 
 export type NewColumnFilters = {
@@ -60,7 +59,6 @@ export type NewColumnFilterVisibilityKey =
 
 export type NewColumnFilterVisibility = Record<NewColumnFilterVisibilityKey, boolean>
 
-export const BOARD_STORAGE_KEY = "admin:candidates:board:v1"
 export const AGE_FILTER_DEFAULT_MIN = 18
 export const AGE_FILTER_DEFAULT_MAX = 60
 export const NEW_COLUMN_FILTER_VISIBILITY_STORAGE_PREFIX = "admin:candidates:new-column-filters:visibility:v1"
@@ -80,6 +78,38 @@ export const MAIN_BOARD_STATUSES: CandidateStatus[] = [
   "in_attesa",
   "scartati",
 ]
+
+export const KANBAN_RANK_STEP = 1000
+export const KANBAN_RANK_FIRST = 1000
+
+/**
+ * Calcola la rank di un drop secondo la strategia midpoint float
+ * (vedi migrazione `0150` + `candidates-repository.ts`).
+ *
+ * - vicini definiti: rank = (prev + next) / 2;
+ * - solo `next` (drop in testa alla colonna): rank = next / 2;
+ * - solo `prev` (drop in coda): rank = prev + KANBAN_RANK_STEP;
+ * - colonna vuota: rank = KANBAN_RANK_FIRST.
+ *
+ * Quando il midpoint collassa sulla rank del vicino sinistro (caso
+ * patologico dopo molti drop nella stessa fessura), forziamo un piccolo
+ * passo positivo per non duplicare la rank.
+ */
+export function computeMidpointRank(
+  prev: number | null | undefined,
+  next: number | null | undefined,
+): number {
+  const hasPrev = typeof prev === "number" && Number.isFinite(prev)
+  const hasNext = typeof next === "number" && Number.isFinite(next)
+  if (!hasPrev && !hasNext) return KANBAN_RANK_FIRST
+  if (!hasPrev) return (next as number) / 2
+  if (!hasNext) return (prev as number) + KANBAN_RANK_STEP
+  const midpoint = ((prev as number) + (next as number)) / 2
+  if (midpoint <= (prev as number)) {
+    return (prev as number) + Number.EPSILON * 1024
+  }
+  return midpoint
+}
 
 export function getNewColumnFilterVisibilityStorageKey(boardCity: string): string {
   return `${NEW_COLUMN_FILTER_VISIBILITY_STORAGE_PREFIX}:${boardCity}`
@@ -115,13 +145,105 @@ export function toDateKey(value: string | undefined): string | null {
   return `${year}-${month}-${day}`
 }
 
-export function createInitialBoardState(candidates: Candidate[] = CANDIDATES): CandidateBoardState {
+export function createEmptyBoardState(): CandidateBoardState {
+  return {
+    byId: {},
+    columns: createEmptyColumns(),
+    trainingSublanes: [],
+  }
+}
+
+export function createInitialBoardState(candidates: Candidate[] = []): CandidateBoardState {
   const byId = Object.fromEntries(candidates.map((candidate) => [candidate.id, candidate]))
   const columns = createEmptyColumns()
+  const seen = new Set<string>()
   candidates.forEach((candidate) => {
+    if (seen.has(candidate.id)) return
+    seen.add(candidate.id)
     columns[candidate.status].push(candidate.id)
   })
   return { byId, columns, trainingSublanes: [] }
+}
+
+/**
+ * Costruisce il board state a partire da righe gia' caricate dal repository.
+ *
+ * Le righe arrivano ordinate per (pipeline_stage ASC, kanban_rank ASC), quindi
+ * `createInitialBoardState` produce naturalmente colonne ordinate per rank.
+ * Inoltre deriviamo i `trainingSublanes` di board dai candidati in
+ * `formazione` usando i loro metadata persistiti (admin_workflow JSONB).
+ */
+export function createBoardStateFromRepoRows(candidates: Candidate[]): CandidateBoardState {
+  const baseState = createInitialBoardState(candidates)
+  return deriveTrainingSublanesFromState(baseState)
+}
+
+function deriveTrainingSublanesFromState(state: CandidateBoardState): CandidateBoardState {
+  const trainingSublanes: TrainingSublane[] = []
+  const trainingLaneById = new Map<string, TrainingSublane>()
+  const mergedById: Record<string, Candidate> = { ...state.byId }
+
+  for (const candidateId of state.columns.formazione) {
+    const candidate = mergedById[candidateId]
+    if (!candidate) continue
+    if (candidate.trainingSublaneId && trainingLaneById.has(candidate.trainingSublaneId)) continue
+
+    const explicitDate = toDateKey(candidate.trainingScheduledDate)
+    const theoryDate = toDateKey(candidate.trainingTheoryDate ?? candidate.trainingStartDate)
+    const practiceDate = toDateKey(candidate.trainingPracticeDate ?? candidate.trainingEndDate)
+    const explicitPhase = candidate.trainingPhase
+    const preferredType: TrainingSublaneType | null =
+      explicitPhase === "teoria" || explicitPhase === "pratica"
+        ? explicitPhase
+        : practiceDate
+          ? "pratica"
+          : theoryDate
+            ? "teoria"
+            : null
+    const preferredDate =
+      preferredType === "teoria"
+        ? explicitDate ?? theoryDate
+        : preferredType === "pratica"
+          ? explicitDate ?? practiceDate
+          : null
+    if (!preferredType || !preferredDate) continue
+
+    const laneId = candidate.trainingSublaneId?.trim()
+      ? candidate.trainingSublaneId
+      : buildTrainingSublaneId(preferredType, preferredDate)
+
+    if (!trainingLaneById.has(laneId)) {
+      const lane: TrainingSublane = {
+        id: laneId,
+        type: preferredType,
+        date: preferredDate,
+        createdAt: new Date().toISOString(),
+      }
+      trainingLaneById.set(lane.id, lane)
+      trainingSublanes.push(lane)
+    }
+
+    mergedById[candidateId] = {
+      ...candidate,
+      trainingPhase: preferredType,
+      trainingScheduledDate: preferredDate,
+      trainingTheoryDate: preferredType === "teoria" ? preferredDate : undefined,
+      trainingPracticeDate: preferredType === "pratica" ? preferredDate : undefined,
+      trainingSublaneId: laneId,
+    }
+  }
+
+  const usedSublaneIds = new Set<string>()
+  for (const candidateId of state.columns.formazione) {
+    const laneId = mergedById[candidateId]?.trainingSublaneId
+    if (laneId && trainingLaneById.has(laneId)) usedSublaneIds.add(laneId)
+  }
+
+  return {
+    ...state,
+    byId: mergedById,
+    trainingSublanes: trainingSublanes.filter((lane) => usedSublaneIds.has(lane.id)),
+  }
 }
 
 export function findColumnByCandidateId(
@@ -168,13 +290,14 @@ export function moveCandidate(
     if (sourceIndex === -1) return state
     const newIndex = targetIndexFromCard >= 0 ? targetIndex : targetIds.length - 1
     if (sourceIndex === newIndex) return state
-    return {
+    const reorderedState: CandidateBoardState = {
       ...state,
       columns: {
         ...state.columns,
         [sourceColumn]: arrayMove(sourceIds, sourceIndex, newIndex),
       },
     }
+    return applyRankToCandidate(reorderedState, activeId, sourceColumn)
   }
 
   if (sourceIndex === -1) return state
@@ -191,185 +314,10 @@ export function moveCandidate(
       [targetColumn]: nextTargetIds,
     },
   }
-  const clearedPostponeState = clearPostponeMetadataIfNeeded(nextState, activeId, targetColumn)
+  const rankedState = applyRankToCandidate(nextState, activeId, targetColumn)
+  const clearedPostponeState = clearPostponeMetadataIfNeeded(rankedState, activeId, targetColumn)
   const clearedDiscardState = clearDiscardMetadataIfNeeded(clearedPostponeState, activeId, targetColumn)
   return clearTrainingSublaneIfNeeded(clearedDiscardState, activeId, targetColumn)
-}
-
-type SerializedBoardV1 = {
-  columns: Record<CandidateStatus, string[]>
-}
-
-type SerializedBoardV2 = {
-  version: 2
-  columns: Record<CandidateStatus, string[]>
-  byId: Record<string, Candidate>
-}
-
-type SerializedBoardV3 = {
-  version: 3
-  columns: Record<CandidateStatus, string[]>
-  byId: Record<string, Candidate>
-  trainingSublanes: TrainingSublane[]
-}
-
-function serializeBoard(state: CandidateBoardState): string {
-  const payload: SerializedBoardV3 = {
-    version: 3,
-    columns: state.columns,
-    byId: state.byId,
-    trainingSublanes: state.trainingSublanes,
-  }
-  return JSON.stringify(payload)
-}
-
-function hydrateBoard(serializedState: string, candidates: Candidate[]): CandidateBoardState | null {
-  try {
-    const parsed = JSON.parse(serializedState) as
-      | (SerializedBoardV1 & { version?: never })
-      | { version: 2; columns?: Partial<Record<CandidateStatus, unknown>>; byId?: Record<string, unknown> }
-      | {
-          version: 3
-          columns?: Partial<Record<CandidateStatus, unknown>>
-          byId?: Record<string, unknown>
-          trainingSublanes?: unknown
-        }
-
-    const initialState = createInitialBoardState(candidates)
-    if (!parsed?.columns) return initialState
-
-    const nextColumns = createEmptyColumns()
-    const seenIds = new Set<string>()
-
-    // Rehydrate persisted columns first, enforcing global id uniqueness.
-    // Important: an id must appear in at most one column, otherwise dnd-kit becomes unstable.
-    for (const column of KANBAN_COLUMNS) {
-      const rawIds = parsed.columns[column.id]
-      if (!Array.isArray(rawIds)) continue
-      for (const rawId of rawIds) {
-        if (typeof rawId !== "string") continue
-        if (!initialState.byId[rawId]) continue
-        if (seenIds.has(rawId)) continue
-        seenIds.add(rawId)
-        nextColumns[column.id].push(rawId)
-      }
-    }
-
-    // Append new/unseen candidates once, in their default status column.
-    // This preserves backward compatibility when mock data changes between sessions.
-    for (const candidate of candidates) {
-      if (seenIds.has(candidate.id)) continue
-      seenIds.add(candidate.id)
-      nextColumns[candidate.status].push(candidate.id)
-    }
-
-    const mergedById: Record<string, Candidate> = { ...initialState.byId }
-    if ((parsed.version === 2 || parsed.version === 3) && parsed.byId && typeof parsed.byId === "object") {
-      for (const candidateId of Object.keys(mergedById)) {
-        const persistedCandidate = parsed.byId[candidateId]
-        if (!persistedCandidate || typeof persistedCandidate !== "object") continue
-        mergedById[candidateId] = {
-          ...mergedById[candidateId],
-          ...(persistedCandidate as Partial<Candidate>),
-        }
-      }
-    }
-
-    const trainingSublanes: TrainingSublane[] = []
-    const trainingLaneById = new Map<string, TrainingSublane>()
-    if (parsed.version === 3 && Array.isArray(parsed.trainingSublanes)) {
-      for (const rawLane of parsed.trainingSublanes) {
-        if (!rawLane || typeof rawLane !== "object") continue
-        const lane = rawLane as Partial<TrainingSublane>
-        const type = lane.type
-        const date = toDateKey(typeof lane.date === "string" ? lane.date : undefined)
-        if ((type !== "teoria" && type !== "pratica") || !date) continue
-        const id = typeof lane.id === "string" && lane.id.trim() ? lane.id : buildTrainingSublaneId(type, date)
-        if (trainingLaneById.has(id)) continue
-        const normalizedLane: TrainingSublane = {
-          id,
-          type,
-          date,
-          createdAt:
-            typeof lane.createdAt === "string" && lane.createdAt.trim() ? lane.createdAt : new Date().toISOString(),
-        }
-        trainingLaneById.set(id, normalizedLane)
-        trainingSublanes.push(normalizedLane)
-      }
-    }
-
-    // Backward compatibility for v1/v2 and legacy records:
-    // derive sub-lanes from normalized training phase/date when possible.
-    for (const candidateId of nextColumns.formazione) {
-      const candidate = mergedById[candidateId]
-      if (!candidate) continue
-      if (candidate.trainingSublaneId && trainingLaneById.has(candidate.trainingSublaneId)) continue
-
-      const explicitDate = toDateKey(candidate.trainingScheduledDate)
-      const theoryDate = toDateKey(candidate.trainingTheoryDate ?? candidate.trainingStartDate)
-      const practiceDate = toDateKey(candidate.trainingPracticeDate ?? candidate.trainingEndDate)
-      const explicitPhase = candidate.trainingPhase
-      const preferredType: TrainingSublaneType | null =
-        explicitPhase === "teoria" || explicitPhase === "pratica"
-          ? explicitPhase
-          : practiceDate
-            ? "pratica"
-            : theoryDate
-              ? "teoria"
-              : null
-      const preferredDate =
-        preferredType === "teoria" ? explicitDate ?? theoryDate : preferredType === "pratica" ? explicitDate ?? practiceDate : null
-      if (!preferredType || !preferredDate) continue
-
-      const laneId = buildTrainingSublaneId(preferredType, preferredDate)
-      if (!trainingLaneById.has(laneId)) {
-        const lane: TrainingSublane = {
-          id: laneId,
-          type: preferredType,
-          date: preferredDate,
-          createdAt: new Date().toISOString(),
-        }
-        trainingLaneById.set(lane.id, lane)
-        trainingSublanes.push(lane)
-      }
-      mergedById[candidateId] = {
-        ...candidate,
-        trainingPhase: preferredType,
-        trainingScheduledDate: preferredDate,
-        trainingTheoryDate: preferredType === "teoria" ? preferredDate : undefined,
-        trainingPracticeDate: preferredType === "pratica" ? preferredDate : undefined,
-        trainingSublaneId: laneId,
-      }
-    }
-
-    const usedSublaneIds = new Set<string>()
-    for (const candidateId of nextColumns.formazione) {
-      const laneId = mergedById[candidateId]?.trainingSublaneId
-      if (laneId && trainingLaneById.has(laneId)) usedSublaneIds.add(laneId)
-    }
-    const prunedTrainingSublanes = trainingSublanes.filter((lane) => usedSublaneIds.has(lane.id))
-
-    return {
-      byId: mergedById,
-      columns: nextColumns,
-      trainingSublanes: prunedTrainingSublanes,
-    }
-  } catch {
-    return null
-  }
-}
-
-export const localStorageBoardAdapter: CandidateBoardPersistenceAdapter = {
-  load(candidates) {
-    if (typeof window === "undefined") return null
-    const serialized = localStorage.getItem(BOARD_STORAGE_KEY)
-    if (!serialized) return null
-    return hydrateBoard(serialized, candidates)
-  },
-  save(state) {
-    if (typeof window === "undefined") return
-    localStorage.setItem(BOARD_STORAGE_KEY, serializeBoard(state))
-  },
 }
 
 export function getCandidatesByStatus(
@@ -402,9 +350,42 @@ export function moveCandidateToStatus(
     ...state,
     columns: nextColumns,
   }
-  const clearedPostponeState = clearPostponeMetadataIfNeeded(nextState, candidateId, targetStatus)
+  const rankedState = applyRankToCandidate(nextState, candidateId, targetStatus)
+  const clearedPostponeState = clearPostponeMetadataIfNeeded(rankedState, candidateId, targetStatus)
   const clearedDiscardState = clearDiscardMetadataIfNeeded(clearedPostponeState, candidateId, targetStatus)
   return clearTrainingSublaneIfNeeded(clearedDiscardState, candidateId, targetStatus)
+}
+
+/**
+ * Riassegna `kanbanRank` al candidato in base ai vicini nella colonna
+ * target. Pure: opera solo sullo state in input.
+ */
+function applyRankToCandidate(
+  state: CandidateBoardState,
+  candidateId: string,
+  targetColumn: CandidateStatus,
+): CandidateBoardState {
+  const candidate = state.byId[candidateId]
+  if (!candidate) return state
+  const ids = state.columns[targetColumn]
+  const index = ids.indexOf(candidateId)
+  if (index === -1) return state
+  const prevId = index > 0 ? ids[index - 1] : null
+  const nextId = index < ids.length - 1 ? ids[index + 1] : null
+  const prevRank = prevId ? state.byId[prevId]?.kanbanRank ?? null : null
+  const nextRank = nextId ? state.byId[nextId]?.kanbanRank ?? null : null
+  const newRank = computeMidpointRank(prevRank, nextRank)
+  if (candidate.kanbanRank === newRank) return state
+  return {
+    ...state,
+    byId: {
+      ...state.byId,
+      [candidateId]: {
+        ...candidate,
+        kanbanRank: newRank,
+      },
+    },
+  }
 }
 
 function clearPostponeMetadataIfNeeded(

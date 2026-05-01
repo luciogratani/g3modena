@@ -2,31 +2,41 @@
  * Main Candidate Board orchestration hook.
  *
  * Responsibilities:
- * - keeps the canonical board state and DnD transitions;
- * - coordinates workflow dialogs/actions (interview, training, postpone);
- * - composes focused hooks for "Nuovo" filters and daily recap logic.
- *
- * Important:
- * - board persistence remains localStorage-based in this phase;
- * - use this hook as the single integration point from `CandidatiBoard`.
+ * - load condivisa via repository Supabase (E4 / L5);
+ * - canonical board state e DnD transitions;
+ * - workflow dialogs/actions (interview, training, postpone, discard);
+ * - sync ottimistico al DB con diff per-candidato + dispatch evento
+ *   `admin:candidates:board-updated` su writeback riusciti;
+ * - composizione hook focalizzati per filtri "Nuovo" e recap giornaliero.
  */
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core"
 import {
-  BOARD_STORAGE_KEY,
   collectDuplicateCandidateIds,
-  createInitialBoardState,
+  createBoardStateFromRepoRows,
+  createEmptyBoardState,
+  findColumnByCandidateId,
   getCandidatesByStatus,
   getCurrentCandidateStatus,
-  localStorageBoardAdapter,
   moveCandidate,
   moveCandidateToStatus,
   type CandidateBoardState,
 } from "@/src/components/candidati-board/board-utils"
 import {
-  CANDIDATES,
-  type Candidate,
-  type CandidateStatus,
+  candidateToAdminWorkflow,
+  type AdminWorkflowBlob,
+  type CandidateUpdate,
+  type CandidatesRepository,
+  supabaseCandidatesRepository,
+} from "@/src/components/candidati-board/candidates-repository"
+import {
+  CITIES_UPDATED_EVENT,
+} from "@/src/components/cities/storage"
+import type {
+  Candidate,
+  CandidateStatus,
+  DiscardReasonKey,
+  DiscardReturnStatus,
 } from "@/src/data/mockCandidates"
 import { useNewColumnFilters } from "./useNewColumnFilters"
 import { useBoardRecap } from "./useBoardRecap"
@@ -37,16 +47,119 @@ import {
   applyTrainingSublaneToCandidate,
   getTrainingSublaneIdFromDrop,
 } from "./workflow-utils"
-export function useCandidateBoardState(boardCity: string = "modena") {
-  const [boardState, setBoardState] = useState<CandidateBoardState>(() =>
-    createInitialBoardState(CANDIDATES),
+
+export const BOARD_UPDATED_EVENT = "admin:candidates:board-updated"
+
+type CandidateSyncSnapshot = {
+  pipelineStage: CandidateStatus | null
+  kanbanRank: number | undefined
+  discardReasonKey: DiscardReasonKey | undefined
+  discardReasonNote: string | undefined
+  discardedAt: string | undefined
+  discardReturnStatus: DiscardReturnStatus | undefined
+  adminWorkflowJson: string
+}
+
+export type UseCandidateBoardStateOptions = {
+  repository?: CandidatesRepository
+}
+
+function snapshotCandidate(
+  state: CandidateBoardState,
+  candidateId: string,
+): CandidateSyncSnapshot | null {
+  const candidate = state.byId[candidateId]
+  if (!candidate) return null
+  return {
+    pipelineStage: findColumnByCandidateId(state.columns, candidateId),
+    kanbanRank: candidate.kanbanRank,
+    discardReasonKey: candidate.discardReasonKey,
+    discardReasonNote: candidate.discardReasonNote,
+    discardedAt: candidate.discardedAt,
+    discardReturnStatus: candidate.discardReturnStatus,
+    adminWorkflowJson: stableStringify(candidateToAdminWorkflow(candidate)),
+  }
+}
+
+function snapshotsEqual(a: CandidateSyncSnapshot, b: CandidateSyncSnapshot): boolean {
+  return (
+    a.pipelineStage === b.pipelineStage &&
+    a.kanbanRank === b.kanbanRank &&
+    a.discardReasonKey === b.discardReasonKey &&
+    a.discardReasonNote === b.discardReasonNote &&
+    a.discardedAt === b.discardedAt &&
+    a.discardReturnStatus === b.discardReturnStatus &&
+    a.adminWorkflowJson === b.adminWorkflowJson
   )
+}
+
+/**
+ * JSON.stringify deterministico (chiavi ordinate) — ci serve un confronto
+ * stabile dello snapshot di `admin_workflow` indipendente dall'ordine di
+ * inserimento.
+ */
+function stableStringify(value: AdminWorkflowBlob): string {
+  const sortedKeys = Object.keys(value).sort()
+  const ordered: Record<string, unknown> = {}
+  for (const key of sortedKeys) {
+    const blobValue = (value as Record<string, unknown>)[key]
+    if (blobValue !== undefined) ordered[key] = blobValue
+  }
+  return JSON.stringify(ordered)
+}
+
+function buildUpdateFromSnapshots(
+  candidate: Candidate,
+  prev: CandidateSyncSnapshot | undefined,
+  next: CandidateSyncSnapshot,
+): CandidateUpdate {
+  const update: CandidateUpdate = {}
+  if (next.pipelineStage && (!prev || prev.pipelineStage !== next.pipelineStage)) {
+    update.pipelineStage = next.pipelineStage
+  }
+  if (!prev || prev.kanbanRank !== next.kanbanRank) {
+    if (typeof next.kanbanRank === "number" && Number.isFinite(next.kanbanRank)) {
+      update.kanbanRank = next.kanbanRank
+    }
+  }
+  if (!prev || prev.discardReasonKey !== next.discardReasonKey) {
+    update.discardReasonKey = next.discardReasonKey ?? null
+  }
+  if (!prev || prev.discardReasonNote !== next.discardReasonNote) {
+    update.discardReasonNote = next.discardReasonNote ?? null
+  }
+  if (!prev || prev.discardedAt !== next.discardedAt) {
+    update.discardedAt = next.discardedAt ?? null
+  }
+  if (!prev || prev.discardReturnStatus !== next.discardReturnStatus) {
+    update.discardReturnStatus = next.discardReturnStatus ?? null
+  }
+  if (!prev || prev.adminWorkflowJson !== next.adminWorkflowJson) {
+    update.adminWorkflow = candidateToAdminWorkflow(candidate)
+  }
+  return update
+}
+
+export function useCandidateBoardState(
+  boardCity: string = "modena",
+  options: UseCandidateBoardStateOptions = {},
+) {
+  const repository = options.repository ?? supabaseCandidatesRepository
+
+  const [boardState, setBoardState] = useState<CandidateBoardState>(() => createEmptyBoardState())
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [activeCandidateId, setActiveCandidateId] = useState<string | null>(null)
   const [activeOverStatus, setActiveOverStatus] = useState<CandidateStatus | null>(null)
   const [workflowDrawerOpen, setWorkflowDrawerOpen] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [boardError, setBoardError] = useState<string | null>(null)
+
+  const lastSyncedRef = useRef<Map<string, CandidateSyncSnapshot>>(new Map())
+  const repositoryRef = useRef(repository)
+  repositoryRef.current = repository
+
   const {
     newColumnFilters,
     newColumnFilterVisibility,
@@ -116,18 +229,89 @@ export function useCandidateBoardState(boardCity: string = "modena") {
   })
 
   useEffect(() => {
-    const persistedState = localStorageBoardAdapter.load(CANDIDATES)
-    if (persistedState) setBoardState(persistedState)
-    setHydrated(true)
-  }, [])
+    let cancelled = false
+
+    async function loadBoardForCity() {
+      setLoading(true)
+      setBoardError(null)
+      try {
+        const candidates = await repositoryRef.current.listByCity(boardCity)
+        if (cancelled) return
+        const nextState = createBoardStateFromRepoRows(candidates)
+        const initialSnapshots = new Map<string, CandidateSyncSnapshot>()
+        for (const id of Object.keys(nextState.byId)) {
+          const snapshot = snapshotCandidate(nextState, id)
+          if (snapshot) initialSnapshots.set(id, snapshot)
+        }
+        lastSyncedRef.current = initialSnapshots
+        setBoardState(nextState)
+        setSelectedCandidateId(null)
+        setSheetOpen(false)
+      } catch (error) {
+        if (cancelled) return
+        const message = error instanceof Error ? error.message : "Errore di caricamento board"
+        setBoardError(message)
+        lastSyncedRef.current = new Map()
+        setBoardState(createEmptyBoardState())
+      } finally {
+        if (!cancelled) {
+          setHydrated(true)
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadBoardForCity()
+
+    function handleCitiesUpdated() {
+      void loadBoardForCity()
+    }
+
+    window.addEventListener(CITIES_UPDATED_EVENT, handleCitiesUpdated)
+    return () => {
+      cancelled = true
+      window.removeEventListener(CITIES_UPDATED_EVENT, handleCitiesUpdated)
+    }
+  }, [boardCity])
 
   useEffect(() => {
     if (!hydrated) return
-    const timer = window.setTimeout(() => {
-      localStorageBoardAdapter.save(boardState)
-      window.dispatchEvent(new CustomEvent("admin:candidates:board-updated"))
-    }, 300)
-    return () => window.clearTimeout(timer)
+    const repo = repositoryRef.current
+    const lastSynced = lastSyncedRef.current
+    const currentIds = new Set(Object.keys(boardState.byId))
+    let mutated = false
+
+    for (const previousId of [...lastSynced.keys()]) {
+      if (currentIds.has(previousId)) continue
+      lastSynced.delete(previousId)
+      mutated = true
+      void repo.deleteCandidate(previousId).catch((error) => {
+        console.error("[CandidatesBoard] DELETE failed", previousId, error)
+        const message = error instanceof Error ? error.message : "Errore di sincronizzazione"
+        setBoardError(message)
+      })
+    }
+
+    for (const id of currentIds) {
+      const candidate = boardState.byId[id]
+      const snapshot = snapshotCandidate(boardState, id)
+      if (!candidate || !snapshot) continue
+      const previous = lastSynced.get(id)
+      if (previous && snapshotsEqual(previous, snapshot)) continue
+      const update = buildUpdateFromSnapshots(candidate, previous, snapshot)
+      lastSynced.set(id, snapshot)
+      if (Object.keys(update).length === 0) continue
+      mutated = true
+      void repo.updateCandidate(id, update).catch((error) => {
+        console.error("[CandidatesBoard] UPDATE failed", id, error)
+        const message = error instanceof Error ? error.message : "Errore di sincronizzazione"
+        setBoardError(message)
+      })
+    }
+
+    if (mutated && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent(BOARD_UPDATED_EVENT))
+    }
   }, [boardState, hydrated])
 
   useEffect(() => {
@@ -141,30 +325,6 @@ export function useCandidateBoardState(boardCity: string = "modena") {
       duplicateIds,
     )
   }, [boardState])
-
-  useEffect(() => {
-    function handleClearBoardStorageShortcut(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null
-      const isTypingTarget =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target?.isContentEditable
-      if (isTypingTarget) return
-
-      const isResetShortcut =
-        (event.metaKey || event.ctrlKey) && event.shiftKey && event.key === "Backspace"
-      if (!isResetShortcut) return
-
-      event.preventDefault()
-      localStorage.removeItem(BOARD_STORAGE_KEY)
-      setBoardState(createInitialBoardState(CANDIDATES))
-      setSelectedCandidateId(null)
-      setSheetOpen(false)
-    }
-
-    window.addEventListener("keydown", handleClearBoardStorageShortcut)
-    return () => window.removeEventListener("keydown", handleClearBoardStorageShortcut)
-  }, [])
 
   function handleOpenDetail(candidate: Candidate) {
     setSelectedCandidateId(candidate.id)
@@ -261,8 +421,14 @@ export function useCandidateBoardState(boardCity: string = "modena") {
   function handleClearArchived() {
     setBoardState((currentState) => {
       if (currentState.columns.archivio.length === 0) return currentState
+      const archivedIds = new Set(currentState.columns.archivio)
+      const nextById: Record<string, Candidate> = {}
+      for (const [id, candidate] of Object.entries(currentState.byId)) {
+        if (!archivedIds.has(id)) nextById[id] = candidate
+      }
       return {
         ...currentState,
+        byId: nextById,
         columns: {
           ...currentState.columns,
           archivio: [],
@@ -333,6 +499,8 @@ export function useCandidateBoardState(boardCity: string = "modena") {
 
   return {
     boardState,
+    loading,
+    boardError,
     selectedCandidate,
     selectedCandidateStatus,
     sheetOpen,
@@ -415,4 +583,3 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     handleOpenRimandatiFromRecap,
   }
 }
-

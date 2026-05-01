@@ -5,6 +5,7 @@ import { AnimatedSection } from "@/components/animated-section"
 import { HeadlineReveal } from "@/components/headline-reveal"
 import { formClassNames, isValidEmail } from "@/lib/form-helpers"
 import { toast } from "sonner"
+import { requireSupabaseEdgeInvokeHeaders } from "@/lib/supabase-edge-invoke-headers"
 
 interface ContactFormData {
   fullName: string
@@ -56,7 +57,10 @@ export function ContactForm() {
       }
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...requireSupabaseEdgeInvokeHeaders(),
+        },
         body: JSON.stringify(formData),
       })
       if (!response.ok) {

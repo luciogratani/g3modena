@@ -77,7 +77,7 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 - [ ] **E4 — Adapter admin**  
   Sostituzione `localStorage` (board, camerieri, campagne, …) con fetch Supabase.  
-  2026-05-01: **messaggi** (`contact_messages`) + Edge `contact-submissions`; **sedi** `public.cities` (admin autenticato + web anon + fallback statico; prompt storico [`PROMPT_CHAT_E4_CITIES_SUPABASE.md`](PROMPT_CHAT_E4_CITIES_SUPABASE.md)). Restano **board**, **camerieri**, **campagne**. **Prossima fetta consigliata:** board **`candidates`** / **`L5`** — [`PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md`](PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md).
+  2026-05-01: **messaggi** (`contact_messages`) + Edge `contact-submissions`; **sedi** `public.cities` (admin autenticato + web anon + fallback statico; prompt storico [`PROMPT_CHAT_E4_CITIES_SUPABASE.md`](PROMPT_CHAT_E4_CITIES_SUPABASE.md)); **board** `candidates` (`admin_workflow jsonb` + `kanban_rank numeric` migrazione `0150`, repository condiviso multi-browser con writeback ottimistico, evento `admin:candidates:board-updated` mantenuto come signal post-writeback; mock `mockCandidates.CANDIDATES` solo come fixture/test, fuori dal percorso online; prompt storico [`PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md`](PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md)). Restano **camerieri**, **campagne**.
 
 - [x] **E5 — Pagina Auth + guard** (2026-05-01)  
   Login Supabase Auth funzionante; env Vite (`admin/.env` / `.env.local`, non `.env.example`). Route protette nel gestionale.
@@ -102,8 +102,8 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 - [x] **L4 — Sicurezza gestionale** (2026-05-01)  
   Auth + guard sulle route admin operative insieme a **E5**; resta da confermare hardening deploy (HTTPS-only cookies, URL gestionale non indicizzato, ecc.) in checklist pre-prod.
 
-- [ ] **L5 — Persistenza pipeline candidati condivisa** *(bloccante solo se il go-live richiede team multi-dispositivo)*  
-  Board e stato candidati non possono restare solo in `localStorage` del browser — DEVELOPMENT_NOTES: «Board persistence server-side». Per demo single-browser può restare differito insieme a **E4**.
+- [x] **L5 — Persistenza pipeline candidati condivisa** (2026-05-01)  
+  Board e stato candidati su `public.candidates` con migrazione `20260501000150_e4_candidates_admin_workflow.sql` (`admin_workflow jsonb` + `kanban_rank numeric`, indice `(city_id, pipeline_stage, kanban_rank)`). Hook `useCandidateBoardState` carica via repository, scrive via writeback ottimistico diff-based, mantiene evento `admin:candidates:board-updated` per badge sidebar; receiver L1 calcola `kanban_rank` append-tail sulla colonna `nuovo`. Test board riadattati con `InMemoryCandidatesRepository`.
 
 ### Di solito non bloccanti per un primo rilascio / demo
 
@@ -117,4 +117,4 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist (2026-05-01): **E4** avanzato con **`cities`** (admin Supabase + careers anon); prima **messaggi**, **L1**, **L2**, **E2**, **E5**, **L4**. **Prossimo focus tecnico consigliato:** board **`candidates`** (**`L5`** / **`E4`**) — prompt [`PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md`](PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md); poi **campagne**, **camerieri**, gate **L3**, residuo **E3**, **A5**.
+Ultimo aggiornamento checklist (2026-05-01): **E4** avanzato con **`cities`** + **board `candidates`** (gate **`L5`** chiuso); prima **messaggi**, **L1**, **L2**, **E2**, **E5**, **L4**. **Prossimo focus tecnico consigliato:** **camerieri** / **campagne** (residui **E4**), gate **L3**, residuo **E3**, **A5**.

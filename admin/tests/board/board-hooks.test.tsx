@@ -9,7 +9,21 @@ import {
 } from "../../src/components/candidati-board/board-utils"
 import { useCandidateBoardState } from "../../src/components/candidati-board/useCandidateBoardState"
 import { useNewColumnFilters } from "../../src/components/candidati-board/useNewColumnFilters"
-import { installLocalStorageMock } from "./test-helpers"
+import { CANDIDATES, type Candidate } from "../../src/data/mockCandidates"
+import { InMemoryCandidatesRepository, installLocalStorageMock } from "./test-helpers"
+
+function modenaSeed(): Candidate[] {
+  return CANDIDATES.filter((candidate) => candidate.candidateCity === "modena").map((candidate, index) => ({
+    ...candidate,
+    kanbanRank: (index + 1) * 1000,
+  }))
+}
+
+function renderBoardHook(seed: Candidate[] = modenaSeed()) {
+  const repository = new InMemoryCandidatesRepository(seed)
+  const result = renderHook(() => useCandidateBoardState("modena", { repository }))
+  return { ...result, repository }
+}
 
 describe("board hooks integration", () => {
   beforeEach(() => {
@@ -60,8 +74,9 @@ describe("board hooks integration", () => {
     expect(result.current.newColumnFilters.eta.maxAge).toBe(AGE_FILTER_DEFAULT_MAX)
   })
 
-  it("opens postpone dialog on drag to in_attesa and confirms transition", () => {
-    const { result } = renderHook(() => useCandidateBoardState("modena"))
+  it("opens postpone dialog on drag to in_attesa and confirms transition", async () => {
+    const { result, repository } = renderBoardHook()
+    await waitFor(() => expect(result.current.loading).toBe(false))
     const candidateId = result.current.boardState.columns.nuovo[0]
     expect(candidateId).toBeTruthy()
 
@@ -87,10 +102,18 @@ describe("board hooks integration", () => {
     expect(result.current.postponeDialogOpen).toBe(false)
     expect(getCurrentCandidateStatus(result.current.boardState.columns, candidateId)).toBe("in_attesa")
     expect(result.current.boardState.byId[candidateId].postponedUntil).toBe("2026-04-01")
+
+    await waitFor(() => {
+      const updated = repository.updates.find(
+        (entry) => entry.id === candidateId && entry.update.pipelineStage === "in_attesa",
+      )
+      expect(updated).toBeTruthy()
+    })
   })
 
-  it("opens interview dialog on drag to colloquio and applies metadata on confirm", () => {
-    const { result } = renderHook(() => useCandidateBoardState("modena"))
+  it("opens interview dialog on drag to colloquio and applies metadata on confirm", async () => {
+    const { result, repository } = renderBoardHook()
+    await waitFor(() => expect(result.current.loading).toBe(false))
     const candidateId = result.current.boardState.columns.nuovo[0]
 
     act(() => {
@@ -116,10 +139,18 @@ describe("board hooks integration", () => {
     expect(getCurrentCandidateStatus(result.current.boardState.columns, candidateId)).toBe("colloquio")
     expect(result.current.boardState.byId[candidateId].interviewDateTime).toBe("2026-04-02T14:30")
     expect(result.current.boardState.byId[candidateId].interviewNote).toBe("Confermare slot sala A")
+
+    await waitFor(() => {
+      const updated = repository.updates.find(
+        (entry) => entry.id === candidateId && entry.update.pipelineStage === "colloquio",
+      )
+      expect(updated).toBeTruthy()
+    })
   })
 
-  it("opens discard dialog on drag to scartati and confirms with reason", () => {
-    const { result } = renderHook(() => useCandidateBoardState("modena"))
+  it("opens discard dialog on drag to scartati and confirms with reason", async () => {
+    const { result, repository } = renderBoardHook()
+    await waitFor(() => expect(result.current.loading).toBe(false))
     const candidateId = result.current.boardState.columns.nuovo[0]
 
     act(() => {
@@ -145,10 +176,18 @@ describe("board hooks integration", () => {
     expect(result.current.boardState.byId[candidateId].discardReasonKey).toBe("not_a_fit")
     expect(result.current.boardState.byId[candidateId].discardedAt).toBeTruthy()
     expect(result.current.boardState.byId[candidateId].discardReturnStatus).toBe("nuovo")
+
+    await waitFor(() => {
+      const updated = repository.updates.find(
+        (entry) => entry.id === candidateId && entry.update.discardReasonKey === "not_a_fit",
+      )
+      expect(updated).toBeTruthy()
+    })
   })
 
-  it("blocks discard confirmation when reason is 'other' and note is empty", () => {
-    const { result } = renderHook(() => useCandidateBoardState("modena"))
+  it("blocks discard confirmation when reason is 'other' and note is empty", async () => {
+    const { result } = renderBoardHook()
+    await waitFor(() => expect(result.current.loading).toBe(false))
     const candidateId = result.current.boardState.columns.nuovo[0]
 
     act(() => {
@@ -178,8 +217,9 @@ describe("board hooks integration", () => {
     expect(result.current.boardState.byId[candidateId].discardReasonNote).toBe("Motivazione libera")
   })
 
-  it("restores from scartati to discardReturnStatus and clears metadata", () => {
-    const { result } = renderHook(() => useCandidateBoardState("modena"))
+  it("restores from scartati to discardReturnStatus and clears metadata", async () => {
+    const { result, repository } = renderBoardHook()
+    await waitFor(() => expect(result.current.loading).toBe(false))
     const candidateId = result.current.boardState.columns.nuovo[0]
 
     act(() => {
@@ -218,5 +258,38 @@ describe("board hooks integration", () => {
     expect(result.current.boardState.byId[candidateId].discardReasonNote).toBeUndefined()
     expect(result.current.boardState.byId[candidateId].discardedAt).toBeUndefined()
     expect(result.current.boardState.byId[candidateId].discardReturnStatus).toBeUndefined()
+
+    await waitFor(() => {
+      // Restore writes a final transition back to colloquio with cleared discard columns
+      const cleared = repository.updates
+        .filter((entry) => entry.id === candidateId)
+        .at(-1)
+      expect(cleared?.update.pipelineStage).toBe("colloquio")
+      expect(cleared?.update.discardReasonKey).toBeNull()
+      expect(cleared?.update.discardedAt).toBeNull()
+    })
+  })
+
+  it("clearing archive removes candidates and triggers DELETE in repo", async () => {
+    const archived: Candidate = {
+      ...modenaSeed()[0],
+      id: "archived-1",
+      status: "archivio",
+      kanbanRank: 1000,
+    }
+    const { result, repository } = renderBoardHook([archived])
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.boardState.columns.archivio).toContain("archived-1")
+
+    act(() => {
+      result.current.handleClearArchived()
+    })
+
+    expect(result.current.boardState.columns.archivio).toEqual([])
+    expect(result.current.boardState.byId["archived-1"]).toBeUndefined()
+
+    await waitFor(() => {
+      expect(repository.deletes).toContain("archived-1")
+    })
   })
 })

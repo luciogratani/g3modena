@@ -1,4 +1,4 @@
-import type { Candidate } from "@/src/data/mockCandidates"
+import type { Candidate, CandidateCity } from "@/src/data/mockCandidates"
 import type { Cameriere, CameriereCreateInput, CameriereTag } from "./types"
 
 export function getCameriereTagsFromCandidate(candidate: Candidate): CameriereTag[] {
@@ -12,7 +12,7 @@ export function getCameriereTagsFromCandidate(candidate: Candidate): CameriereTa
 
 export function createCameriereInputFromCandidate(candidate: Candidate): CameriereCreateInput {
   return {
-    city: candidate.candidateCity,
+    city: candidate.candidateCity as CandidateCity,
     sourceCandidateId: candidate.id,
     firstName: candidate.firstName,
     lastName: candidate.lastName,

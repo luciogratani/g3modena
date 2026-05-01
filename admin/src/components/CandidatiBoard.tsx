@@ -164,6 +164,8 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
 
   const {
     boardState,
+    loading,
+    boardError,
     selectedCandidate,
     selectedCandidateStatus,
     sheetOpen,
@@ -245,6 +247,16 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
 
   return (
     <div className="relative flex h-full min-w-0 flex-col overflow-x-auto bg-background p-6">
+      {loading ? (
+        <div className="mb-3 rounded-md border border-dashed bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+          Caricamento candidati in corso...
+        </div>
+      ) : null}
+      {boardError ? (
+        <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+          Errore di sincronizzazione board: {boardError}. Aggiorna la pagina per recuperare lo stato dal server.
+        </div>
+      ) : null}
       <div className="flex-1">
         <div className="flex h-full min-w-max gap-4">
           <DndContext

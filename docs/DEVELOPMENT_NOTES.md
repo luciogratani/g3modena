@@ -54,7 +54,8 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
   - `useBoardWorkflowDetails`
 - [x] Test regressione board attivi con Vitest:
   - `pnpm test:board`
-  - copertura su `board-utils`, `workflow-utils`, `useCandidateBoardState`, `useNewColumnFilters`.
+  - copertura su `board-utils` (transitions pure + kanban rank), `workflow-utils`, `useCandidateBoardState` (con `InMemoryCandidatesRepository` iniettato), `candidates-repository` (mapping snake/camel + flatten `admin_workflow`), `useNewColumnFilters`.
+- [x] **Persistenza condivisa Supabase (E4/L5, 2026-05-01)**: hook `useCandidateBoardState` carica via `candidates-repository.listByCity(slug)` (lookup `cities` per slug -> id, ORDER BY `(pipeline_stage, kanban_rank)`); writeback ottimistico diff-based emette UPDATE per pipeline/discard/admin_workflow/rank o DELETE quando il candidato esce dal board (`handleClearArchived`). DnD intra-colonna usa `kanban_rank` con strategia midpoint float (un solo UPDATE per drop). Receiver L1 `career-submissions` calcola `kanban_rank = max + 1000` sulla colonna `nuovo` della sede.
 
 ### CMS / SEO / Contatti
 - [x] CMS editor guidato completo su sezioni `hero/about/clients/why_g3/footer/sections` (no JSON editing per utente finale).
@@ -164,7 +165,7 @@ Integrazioni cross-modulo:
 
 - **Board status policy**: lo stato runtime deriva sempre dalla colonna corrente.
 - **Date policy**: evitare `new Date(...)` inline nei render; usare helper centralizzati e fallback.
-- **Board persistence policy**: persistenza locale versionata (non cross-device finche non c'e backend).
+- **Board persistence policy** (2026-05-01, gate **L5**): sorgente condivisa su `public.candidates` via Supabase autenticato (`admin/src/components/candidati-board/candidates-repository.ts`). Niente blob locale. Ordinamento intra-colonna via `kanban_rank numeric` con strategia midpoint float (`(prev + next) / 2`); workflow UI non normalizzato in `admin_workflow jsonb`. Writeback ottimistico diff-based dentro `useCandidateBoardState`: ogni mutation aggiorna lo state e in parallelo emette UPDATE/DELETE; gli errori di sync compaiono come banner sopra la board. Evento `admin:candidates:board-updated` mantenuto come signal UI post-writeback per badge sidebar e count "Nuovo".
 - **Filters policy**: filtri `Nuovo` persistenti per citta; filtro nascosto => filtro disattivato/reset.
 - **Discard policy**: `scartati` è stato strutturato (catalogo ragioni v1 chiuso + nota opzionale). Il move avviene solo dopo conferma del dialog (parità con `colloquio`/`postpone`). Uscire dalla colonna (`Ripristina`, archivio, drop su altra colonna) ripulisce automaticamente `discardReasonKey|Note|At|ReturnStatus` via `clearDiscardMetadataIfNeeded`. `Promuovi a Cameriere` non è esposto in `scartati`.
 - **Contract policy**: nuove key CMS prima in `@g3/content-contract`, poi propagate ad admin/web.
@@ -179,7 +180,7 @@ Integrazioni cross-modulo:
 
 ## TODO pre-lancio effettivo (priorita)
 
-- [ ] **Board persistence server-side**: migrare da localStorage a persistenza DB condivisa.
+- [x] **Board persistence server-side** (2026-05-01, **L5**): board candidati su `public.candidates` (admin Supabase autenticato), `admin_workflow jsonb` + `kanban_rank numeric`, repository condiviso multi-browser, mock `CANDIDATES` solo come test fixture.
 - [x] **Contatti > Messaggi backend wiring**: Edge `contact-submissions` + inbox admin Supabase (`contact_messages`), stato `nuovo/letto/archiviato` persistito.
 - [ ] **CMS wiring production-safe**: verifica schema, RLS/policy, tenant separation, fallback robusto.
 - [ ] **Web runtime da DB**: lettura reale contenuti da Supabase con fallback/feature-flag.
@@ -203,14 +204,14 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 
 | Dominio | Chiave / evento | Destinazione prevista |
 |--------|------------------|-----------------------|
-| Board candidati | `admin:candidates:board:v1` | `candidates` + stato workflow/ordinamento dove necessario |
+| Board candidati | ~~`admin:candidates:board:v1`~~ (legacy, rimosso 2026-05-01) | `candidates` (`pipeline_stage` + `kanban_rank` + `admin_workflow jsonb`, gate **L5** ✓) |
 | Filtri colonna `Nuovo` | `admin:candidates:new-column-filters:state:v1:{modena|sassari}` | Restano preferenze locali salvo richiesta sync |
 | Visibilità filtri `Nuovo` | `admin:candidates:new-column-filters:visibility:v1:{modena|sassari}` | Restano preferenze locali |
 | Recap giornaliero | `admin:candidates:daily-recap:dismissed-on` | Preferenza locale, non DB v1 |
 | Messaggi contatti | ~~`admin:contact-messages:v1`~~ (legacy); lista ora da **`contact_messages`** | `contact_messages` (L2 ✓) |
 | Camerieri CRM | `admin:camerieri:crm:v1` + evento `admin:camerieri:updated` | `staff` |
 | Sedi | ~~`admin:cities:v1`~~ (legacy); dati da **`public.cities`**; evento **`admin:cities:updated`** solo segnale UI post-mutazione | `cities` (E4 ✓) |
-| Board update | evento `admin:candidates:board-updated` | Sostituire con invalidazione/query refresh adapter |
+| Board update | evento `admin:candidates:board-updated` | Mantenuto come signal UI post-writeback DB (sidebar badge + count "Nuovo") |
 | Tema admin | `admin-theme-preference` (`admin-theme` legacy) | Resta localStorage |
 
 ### Env Supabase admin già usate dal codice
@@ -237,7 +238,8 @@ Stato 2026-05-01: completati **audit ERD (D1)** e **migrazioni SQL v1 (E1)** in 
   - `cms_sections`: unique composito tenant+sezione (`NULLS NOT DISTINCT`, Postgres 15+);
   - `contact_messages`: `updated_at` + workflow `nuovo|letto|archiviato`;
   - `candidates` (A4 / migrazione `0080`): `pipeline_stage` esteso con `scartati`; nuove colonne `discard_reason_key|note|discarded_at|return_status` con CHECK whitelistati e indice parziale `candidates_discard_reason_idx where discard_reason_key is not null`.
-- **Perimetro residuo:** E3 (Storage CMS/campagne oltre careers); E4 residuo (**board**, **camerieri**, **campagne** — sedi e messaggi già migrati); L3/L5 come da roadmap.
+  - `candidates` (E4/L5 / migrazione `0150`): `admin_workflow jsonb` (snapshot UI workflow non normalizzato, no CHECK in v1) + `kanban_rank numeric` scoped per `(city_id, pipeline_stage)` (strategia midpoint float, indice composito `candidates_city_stage_rank_idx`).
+- **Perimetro residuo:** E3 (Storage CMS/campagne oltre careers); E4 residuo (**camerieri**, **campagne** — sedi, messaggi e board candidati già migrati); L3 come da roadmap.
 
 Riferimenti: `supabase/README.md`, `docs/CAMPAIGNS_CONTRACT.md`, `docs/ANALYTICS_INGEST_CONTRACT.md`, `docs/DB_CMS_INTEGRATION.md`.
 
@@ -264,6 +266,20 @@ Componenti da frammentare prima del prossimo blocco di sviluppo:
   Frammentare in hook + step UI (`useCareersFormState`, `useCareersFormValidation`, `useCareersFormSubmit`, `Step1..Step4`).
 
 Priorita consigliata: `CandidatiBoard` -> `CandidateDetailSheet` -> `CmsWebEditor` -> `careers-form`.
+
+---
+
+## Log operativo (2026-05-01, sera)
+
+- Eseguito `supabase db push` sul progetto remoto con apply completato di:
+  - `20260501000140_e3_storage_careers.sql`
+  - `20260501000150_e4_candidates_admin_workflow.sql`
+- Deploy remoto completato delle Edge Functions:
+  - `career-submissions`
+  - `contact-submissions`
+- CORS temporaneamente aperto in test: `CAREERS_ALLOWED_ORIGINS` e `CONTACT_ALLOWED_ORIGINS` non risultano impostati (match wildcard runtime). Da restringere con whitelist esplicita prima del go-live pubblico.
+- Ambiente locale web riallineato: creato `web/.env` con endpoint function Supabase (`career-submissions`, `contact-submissions`) + `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
+- Fix gateway Functions **401**: il browser deve inviare `Authorization: Bearer <anon>` + `apikey` (`web/lib/supabase-edge-invoke-headers.ts` usato da careers e contact).
 
 ---
 

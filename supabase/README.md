@@ -33,7 +33,8 @@ supabase/
     ├── 20260501000110_e2b_policies_anon_public.sql
     ├── 20260501000120_e2b_campaign_lookup_bridge.sql    RPC cid -> campaign_id
     ├── 20260501000130_e2b_hardening_grants_and_policy_smoke.sql
-    └── 20260501000140_e3_storage_careers.sql            bucket allegati candidature
+    ├── 20260501000140_e3_storage_careers.sql            bucket allegati candidature
+    └── 20260501000150_e4_candidates_admin_workflow.sql  E4/L5: admin_workflow jsonb + kanban_rank numeric
 └── functions/
     ├── contact-submissions/                             receiver form contatti
     └── career-submissions/                              receiver candidature web
@@ -81,6 +82,8 @@ VITE_CAREER_ENDPOINT=https://<project-ref>.functions.supabase.co/career-submissi
 VITE_CAREER_SUBMIT_FORMAT=multipart
 ```
 
+Il gateway delle Functions richiede anche **`Authorization: Bearer <anon>`** e **`apikey`** (stessa anon key pubblica): il sito (`careers-form.tsx`, `contact-form.tsx`) li invia tramite `web/lib/supabase-edge-invoke-headers.ts`. Negli smoke `curl` usa `-H "Authorization: Bearer $SUPABASE_ANON_KEY" -H "apikey: $SUPABASE_ANON_KEY"`.
+
 Prerequisiti operativi:
 
 1. `supabase db push` deve aver applicato anche `20260501000140_e3_storage_careers.sql`;
@@ -91,6 +94,8 @@ Smoke manuale multipart:
 
 ```bash
 curl -i -X POST "$VITE_CAREER_ENDPOINT" \
+  -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
   -F officeCitySlug=modena \
   -F fullName="Mario Rossi" \
   -F email="mario.rossi@example.com" \
@@ -128,10 +133,14 @@ Env web production:
 VITE_CONTACT_ENDPOINT=https://<project-ref>.functions.supabase.co/contact-submissions
 ```
 
+Serve anche la anon key pubblica nel bundle (`VITE_SUPABASE_ANON_KEY`) per gli header verso il gateway Functions (vedi sopra).
+
 Smoke manuale JSON:
 
 ```bash
 curl -i -X POST "$VITE_CONTACT_ENDPOINT" \
+  -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "fullName": "Mario Rossi",
@@ -154,6 +163,40 @@ Check consigliati (manuali, post-`db push`):
 4. verificare che `resolve_campaign_id_from_cid(text)` sia `EXECUTE` per `anon`.
 
 Se non vuoi usare CLI, lo stesso smoke pack è incollabile nel SQL Editor Supabase.
+
+### Board admin v1 (E4/L5)
+
+Migrazione `20260501000150_e4_candidates_admin_workflow.sql`:
+
+- `admin_workflow jsonb` (default `'{}'::jsonb`) — snapshot UI workflow non
+  normalizzato (note, interview/training/postpone metadata, sub-lane id,
+  score, referral source, profile image override). Shape gestita app-side
+  dal repository `candidates-repository.ts`, niente CHECK in v1.
+- `kanban_rank numeric` not null — posizione card dentro lo scope
+  `(city_id, pipeline_stage)`. Strategia **midpoint float**:
+  - drop tra due card: `rank = (prev + next) / 2`;
+  - append in coda: `rank = max(rank in scope) + 1000`;
+  - prima card della colonna: `rank = 1000`.
+  Vantaggi: un solo `UPDATE` per drag-and-drop (niente rewrite di N righe),
+  ORDER BY server-side, indice composito query-friendly.
+- Indice `candidates_city_stage_rank_idx (city_id, pipeline_stage, kanban_rank)`
+  per il pattern di lettura della board.
+
+Receiver `career-submissions` (L1) calcola `kanban_rank` come
+`max(rank colonna 'nuovo' della sede) + 1000` all'INSERT.
+
+Smoke SQL post `db push`:
+
+```sql
+-- Verificare backfill: nessuna riga con kanban_rank null
+select count(*) from public.candidates where kanban_rank is null;
+
+-- Verificare unicità ordinamento per scope
+select city_id, pipeline_stage, count(*) filter (where kanban_rank is not null) as ranked
+from public.candidates
+group by city_id, pipeline_stage
+order by city_id, pipeline_stage;
+```
 
 ## Convenzioni schema
 
@@ -187,7 +230,7 @@ Se non vuoi usare CLI, lo stesso smoke pack è incollabile nel SQL Editor Supaba
 |---------|----------------------------------|
 | `cities` | `admin/src/components/cities/types.ts` (`OfficeCity`) → `id`, `slug`, `display_name`, `is_active`, `sort_order`. |
 | `campaigns` | `admin/src/components/campagne/CampagnePage.tsx` (`CampaignRecord`) + `docs/CAMPAIGNS_CONTRACT.md`. |
-| `candidates` | `web/components/careers-form.tsx` payload (`buildCareerJsonPayload`) + workflow board admin. |
+| `candidates` | `web/components/careers-form.tsx` payload (`buildCareerJsonPayload`) + workflow board admin (`admin/src/components/candidati-board/candidates-repository.ts`: `pipeline_stage`, `kanban_rank` numeric, `discard_*` canoniche, `admin_workflow jsonb` con notes/interview/training/postpone). |
 | `staff` | `admin/src/components/camerieri/types.ts` (`Cameriere`). |
 | `cms_sections` | `web/lib/content-adapter.ts` (`adaptSiteContent`) + `@g3/content-contract`. |
 | `contact_messages` | `admin/src/components/contact-messages/types.ts` (`ContactMessage`). |
@@ -217,8 +260,9 @@ allineate qui (fonte autoritativa: i contratti dedicati):
    in `20260501000090`…`20260501000130`.
 2. **E3 — Storage**: bucket candidature (`careers-photos`, `careers-cv`) già
    creati per L1; restano media CMS/campagne.
-3. **E4 — Adapter admin**: `contact_messages` è collegato a Supabase per L2;
-   restano cities, board candidati, staff, campaigns e CMS dove applicabile.
+3. **E4 — Adapter admin**: `contact_messages` (L2), `cities` e **board `candidates`**
+   (gate **L5**, migrazione `0150` con `admin_workflow jsonb` + `kanban_rank numeric`)
+   sono collegati a Supabase; restano staff, campaigns e CMS dove applicabile.
 4. **E5 — Auth + guard route**.
 
 ## RLS matrix v1 (E2b)

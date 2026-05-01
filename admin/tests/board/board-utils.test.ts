@@ -1,14 +1,16 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { describe, expect, it } from "vitest"
 import {
-  BOARD_STORAGE_KEY,
   collectDuplicateCandidateIds,
+  computeMidpointRank,
+  createBoardStateFromRepoRows,
   createInitialBoardState,
-  localStorageBoardAdapter,
+  KANBAN_RANK_FIRST,
+  KANBAN_RANK_STEP,
+  moveCandidate,
   moveCandidateToStatus,
   type CandidateBoardState,
 } from "../../src/components/candidati-board/board-utils"
 import { CANDIDATES, type Candidate } from "../../src/data/mockCandidates"
-import { installLocalStorageMock } from "./test-helpers"
 
 function makeCandidate(
   id: string,
@@ -23,23 +25,13 @@ function makeCandidate(
   }
 }
 
-function countCandidateOccurrences(state: CandidateBoardState, candidateId: string): number {
-  return Object.values(state.columns).reduce(
-    (count, columnIds) => count + columnIds.filter((id) => id === candidateId).length,
-    0,
-  )
-}
-
-describe("board-utils", () => {
-  beforeEach(() => {
-    installLocalStorageMock()
-  })
-
+describe("board-utils — pure transitions", () => {
   it("clears postpone metadata when moving out from in_attesa", () => {
     const postponed = makeCandidate("candidate-postponed", "in_attesa", {
       postponedUntil: "2026-03-30",
       postponeReason: "Ricontattare a fine mese",
       postponeReturnStatus: "nuovo",
+      kanbanRank: 1000,
     })
     const state = createInitialBoardState([postponed])
 
@@ -58,6 +50,7 @@ describe("board-utils", () => {
       trainingSublaneId: "training-teoria-2026-04-01",
       trainingPhase: "teoria",
       trainingScheduledDate: "2026-04-01",
+      kanbanRank: 1000,
     })
     const state: CandidateBoardState = {
       ...createInitialBoardState([inTraining]),
@@ -99,67 +92,13 @@ describe("board-utils", () => {
     expect(collectDuplicateCandidateIds(state.columns)).toEqual(["dup-1"])
   })
 
-  it("rehydrates persisted board enforcing unique candidate ids", () => {
-    const c1 = makeCandidate("c1", "nuovo")
-    const c2 = makeCandidate("c2", "colloquio")
-    const c3 = makeCandidate("c3", "nuovo")
-
-    const persisted = {
-      version: 3,
-      columns: {
-        nuovo: ["c1", "c2"],
-        colloquio: ["c1"],
-        formazione: [],
-        in_attesa: [],
-        scartati: [],
-        rimandati: [],
-        archivio: [],
-      },
-      byId: {
-        c1: {
-          interviewNote: "Persisted metadata",
-        },
-      },
-      trainingSublanes: [],
-    }
-
-    window.localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(persisted))
-    const hydrated = localStorageBoardAdapter.load([c1, c2, c3])
-
-    expect(hydrated).not.toBeNull()
-    expect(hydrated!.byId.c1.interviewNote).toBe("Persisted metadata")
-    expect(countCandidateOccurrences(hydrated!, "c1")).toBe(1)
-    expect(hydrated!.columns.nuovo).toContain("c3")
-  })
-
-  it("rehydrates legacy v3 payload without scartati column without crashing", () => {
-    const c1 = makeCandidate("c1", "nuovo")
-    const persisted = {
-      version: 3,
-      columns: {
-        nuovo: ["c1"],
-        colloquio: [],
-        formazione: [],
-        in_attesa: [],
-        rimandati: [],
-        archivio: [],
-      },
-      byId: {},
-      trainingSublanes: [],
-    }
-    window.localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(persisted))
-    const hydrated = localStorageBoardAdapter.load([c1])
-    expect(hydrated).not.toBeNull()
-    expect(hydrated!.columns.scartati).toEqual([])
-    expect(hydrated!.columns.nuovo).toContain("c1")
-  })
-
   it("clears discard metadata when moving out from scartati", () => {
     const discarded = makeCandidate("candidate-discarded", "scartati", {
       discardReasonKey: "not_a_fit",
       discardReasonNote: "Profilo non in linea",
       discardedAt: "2026-04-30T10:00:00.000Z",
       discardReturnStatus: "colloquio",
+      kanbanRank: 1000,
     })
     const state = createInitialBoardState([discarded])
 
@@ -180,6 +119,7 @@ describe("board-utils", () => {
       discardReasonNote: "Non si e' presentato/a",
       discardedAt: "2026-04-30T10:00:00.000Z",
       discardReturnStatus: "nuovo",
+      kanbanRank: 1000,
     })
     const state = createInitialBoardState([discarded])
 
@@ -198,6 +138,7 @@ describe("board-utils", () => {
       discardReasonKey: "duplicate",
       discardedAt: "2026-04-30T10:00:00.000Z",
       discardReturnStatus: "nuovo",
+      kanbanRank: 1000,
     })
     const state = createInitialBoardState([discarded])
 
@@ -215,6 +156,7 @@ describe("board-utils", () => {
       trainingSublaneId: "training-teoria-2026-04-01",
       trainingPhase: "teoria",
       trainingScheduledDate: "2026-04-01",
+      kanbanRank: 1000,
     })
     const state: CandidateBoardState = {
       ...createInitialBoardState([inTraining]),
@@ -235,5 +177,57 @@ describe("board-utils", () => {
     expect(nextCandidate.trainingSublaneId).toBeUndefined()
     expect(nextCandidate.trainingPhase).toBeUndefined()
     expect(nextState.trainingSublanes).toEqual([])
+  })
+})
+
+describe("board-utils — kanban rank", () => {
+  it("computeMidpointRank: empty column returns FIRST", () => {
+    expect(computeMidpointRank(null, null)).toBe(KANBAN_RANK_FIRST)
+  })
+
+  it("computeMidpointRank: append to tail returns prev + STEP", () => {
+    expect(computeMidpointRank(2000, null)).toBe(2000 + KANBAN_RANK_STEP)
+  })
+
+  it("computeMidpointRank: drop at head halves next", () => {
+    expect(computeMidpointRank(null, 1000)).toBe(500)
+  })
+
+  it("computeMidpointRank: midpoint between neighbors", () => {
+    expect(computeMidpointRank(1000, 2000)).toBe(1500)
+  })
+
+  it("moveCandidate intra-column reorder updates kanbanRank", () => {
+    const a = makeCandidate("a", "nuovo", { kanbanRank: 1000 })
+    const b = makeCandidate("b", "nuovo", { kanbanRank: 2000 })
+    const c = makeCandidate("c", "nuovo", { kanbanRank: 3000 })
+    const state = createInitialBoardState([a, b, c])
+
+    // move c (rank 3000) to position of a (top): c should land before a, with rank 500
+    const nextState = moveCandidate(state, "c", "a")
+    expect(nextState.columns.nuovo).toEqual(["c", "a", "b"])
+    expect(nextState.byId["c"].kanbanRank).toBe(500)
+  })
+
+  it("moveCandidateToStatus appends to target column with rank prev+STEP", () => {
+    const a = makeCandidate("a", "nuovo", { kanbanRank: 1000 })
+    const b = makeCandidate("b", "colloquio", { kanbanRank: 5000 })
+    const state = createInitialBoardState([a, b])
+
+    const nextState = moveCandidateToStatus(state, "a", "colloquio")
+    expect(nextState.columns.colloquio).toEqual(["b", "a"])
+    expect(nextState.byId["a"].kanbanRank).toBe(5000 + KANBAN_RANK_STEP)
+  })
+
+  it("createBoardStateFromRepoRows preserves rank ordering inside each column", () => {
+    const rows = [
+      makeCandidate("c1", "nuovo", { kanbanRank: 3000 }),
+      makeCandidate("c2", "nuovo", { kanbanRank: 1000 }),
+      makeCandidate("c3", "nuovo", { kanbanRank: 2000 }),
+    ]
+    // Repo returns rows already ORDER BY rank ASC, so we feed sorted input here:
+    const sortedRows = [...rows].sort((a, b) => (a.kanbanRank ?? 0) - (b.kanbanRank ?? 0))
+    const state = createBoardStateFromRepoRows(sortedRows)
+    expect(state.columns.nuovo).toEqual(["c2", "c3", "c1"])
   })
 })

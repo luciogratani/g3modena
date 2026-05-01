@@ -142,6 +142,8 @@ denoRuntime.Deno.serve(async (request) => {
         }, uploaded)
         : null;
 
+      const kanbanRank = await nextKanbanRankForNewColumn(supabase, city.id);
+
       const { error: insertError } = await supabase.from("candidates").insert({
         id: candidateId,
         city_id: city.id,
@@ -173,6 +175,8 @@ denoRuntime.Deno.serve(async (request) => {
         utm_term: payload.utmTerm,
         utm_content: payload.utmContent,
         registration_duration_seconds: null,
+        kanban_rank: kanbanRank,
+        admin_workflow: {},
       });
 
       if (insertError) {
@@ -512,6 +516,35 @@ async function resolveActiveCityId(
   }
 
   return { id: data.id };
+}
+
+async function nextKanbanRankForNewColumn(
+  supabase: SupabaseClientLike,
+  cityId: string,
+): Promise<number> {
+  // Append in coda alla colonna `nuovo` per quella sede: max(rank) + 1000.
+  // Coerente con la strategia midpoint float della board admin (E4/L5).
+  const { data, error } = await supabase
+    .from("candidates")
+    .select("kanban_rank")
+    .eq("city_id", cityId)
+    .eq("pipeline_stage", "nuovo")
+    .order("kanban_rank", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new HttpError(
+      500,
+      "Impossibile calcolare la posizione kanban",
+      "kanban_rank_lookup_failed",
+    );
+  }
+
+  const currentMax = typeof data?.kanban_rank === "number"
+    ? data.kanban_rank
+    : Number(data?.kanban_rank ?? 0);
+  return (Number.isFinite(currentMax) ? currentMax : 0) + 1000;
 }
 
 async function resolveCampaignId(

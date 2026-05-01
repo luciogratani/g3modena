@@ -26,6 +26,7 @@ import {
   trackCareersAbandonIfNeeded,
   trackCareersSubmit,
 } from "@/lib/analytics"
+import { requireSupabaseEdgeInvokeHeaders } from "@/lib/supabase-edge-invoke-headers"
 
 const LazyCalendar = lazy(async () => {
   const module = await import("@/components/ui/calendar")
@@ -300,14 +301,19 @@ export function CareersForm() {
         throw new Error("Endpoint candidature non configurato (VITE_CAREER_ENDPOINT)")
       }
 
+      const edgeAuth = requireSupabaseEdgeInvokeHeaders()
       const response = preferMultipartSubmission
         ? await fetch(endpoint, {
             method: "POST",
+            headers: { ...edgeAuth },
             body: buildCareerMultipartPayload(formData, attributionForSubmit),
           })
         : await fetch(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...edgeAuth,
+            },
             body: JSON.stringify(await buildCareerJsonPayload(formData, attributionForSubmit)),
           })
       if (!response.ok) {
