@@ -29,6 +29,7 @@ export function getStatusLabel(status: CandidateStatus): string {
     colloquio: "Colloquio",
     formazione: "Formazione",
     in_attesa: "In Attesa",
+    scartati: "Scartati",
     rimandati: "Rimandati",
     archivio: "Archivio",
   }

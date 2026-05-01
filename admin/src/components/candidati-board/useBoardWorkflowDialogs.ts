@@ -14,7 +14,13 @@ import {
   moveCandidateToStatus,
   type CandidateBoardState,
 } from "@/src/components/candidati-board/board-utils"
-import type { CandidateStatus, PostponeReturnStatus, TrainingSublaneType } from "@/src/data/mockCandidates"
+import type {
+  CandidateStatus,
+  DiscardReasonKey,
+  DiscardReturnStatus,
+  PostponeReturnStatus,
+  TrainingSublaneType,
+} from "@/src/data/mockCandidates"
 import {
   ensureTrainingSublane,
   getCurrentDatetimeLocalValue,
@@ -43,6 +49,22 @@ function resolvePostponeReturnStatus(
   return fallbackStatus ?? "nuovo"
 }
 
+function resolveDiscardReturnStatus(
+  sourceStatus: CandidateStatus | null | undefined,
+  fallbackStatus: DiscardReturnStatus | undefined,
+): DiscardReturnStatus {
+  if (
+    sourceStatus === "nuovo" ||
+    sourceStatus === "colloquio" ||
+    sourceStatus === "formazione" ||
+    sourceStatus === "in_attesa" ||
+    sourceStatus === "rimandati"
+  ) {
+    return sourceStatus
+  }
+  return fallbackStatus ?? "nuovo"
+}
+
 type UseBoardWorkflowDialogsArgs = {
   boardState: CandidateBoardState
   setBoardState: Dispatch<SetStateAction<CandidateBoardState>>
@@ -66,6 +88,12 @@ export function useBoardWorkflowDialogs({ boardState, setBoardState }: UseBoardW
   const [trainingPhase, setTrainingPhase] = useState<TrainingSublaneType>("teoria")
   const [trainingDate, setTrainingDate] = useState("")
   const [trainingNote, setTrainingNote] = useState("")
+
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false)
+  const [discardCandidateId, setDiscardCandidateId] = useState<string | null>(null)
+  const [discardSourceStatus, setDiscardSourceStatus] = useState<CandidateStatus | null>(null)
+  const [discardReasonKey, setDiscardReasonKey] = useState<DiscardReasonKey | null>(null)
+  const [discardReasonNote, setDiscardReasonNote] = useState("")
 
   function handleRequestPostponeCandidate(candidateId: string, sourceStatus?: CandidateStatus | null) {
     const currentStatus = sourceStatus ?? getCurrentCandidateStatus(boardState.columns, candidateId)
@@ -219,6 +247,52 @@ export function useBoardWorkflowDialogs({ boardState, setBoardState }: UseBoardW
     handleTrainingDialogOpenChange(false)
   }
 
+  function handleRequestDiscardCandidate(candidateId: string, sourceStatus?: CandidateStatus | null) {
+    const currentStatus = sourceStatus ?? getCurrentCandidateStatus(boardState.columns, candidateId)
+    setDiscardCandidateId(candidateId)
+    setDiscardSourceStatus(currentStatus)
+    setDiscardReasonKey(null)
+    setDiscardReasonNote("")
+    setDiscardDialogOpen(true)
+  }
+
+  function handleDiscardDialogOpenChange(open: boolean) {
+    setDiscardDialogOpen(open)
+    if (!open) {
+      setDiscardCandidateId(null)
+      setDiscardSourceStatus(null)
+      setDiscardReasonKey(null)
+      setDiscardReasonNote("")
+    }
+  }
+
+  function handleConfirmDiscardCandidate() {
+    if (!discardCandidateId || !discardReasonKey) return
+    const trimmedNote = discardReasonNote.trim()
+    if (discardReasonKey === "other" && !trimmedNote) return
+    setBoardState((currentState) => {
+      const currentCandidate = currentState.byId[discardCandidateId]
+      if (!currentCandidate) return currentState
+      const sourceStatus = discardSourceStatus ?? findColumnByCandidateId(currentState.columns, discardCandidateId)
+      const discardReturnStatus = resolveDiscardReturnStatus(sourceStatus, currentCandidate.discardReturnStatus)
+      const movedState = moveCandidateToStatus(currentState, discardCandidateId, "scartati")
+      return {
+        ...movedState,
+        byId: {
+          ...movedState.byId,
+          [discardCandidateId]: {
+            ...currentCandidate,
+            discardReasonKey,
+            discardReasonNote: trimmedNote ? trimmedNote : undefined,
+            discardedAt: new Date().toISOString(),
+            discardReturnStatus,
+          },
+        },
+      }
+    })
+    handleDiscardDialogOpenChange(false)
+  }
+
   return {
     postponeDialogOpen,
     postponeCandidateId,
@@ -232,6 +306,10 @@ export function useBoardWorkflowDialogs({ boardState, setBoardState }: UseBoardW
     trainingPhase,
     trainingDate,
     trainingNote,
+    discardDialogOpen,
+    discardCandidateId,
+    discardReasonKey,
+    discardReasonNote,
 
     setPostponeDate,
     setPostponeReason,
@@ -241,6 +319,8 @@ export function useBoardWorkflowDialogs({ boardState, setBoardState }: UseBoardW
     setTrainingPhase,
     setTrainingDate,
     setTrainingNote,
+    setDiscardReasonKey,
+    setDiscardReasonNote,
 
     handleRequestPostponeCandidate,
     handleRequestInterviewCandidate,
@@ -251,5 +331,8 @@ export function useBoardWorkflowDialogs({ boardState, setBoardState }: UseBoardW
     handleConfirmInterviewTransition,
     handleTrainingDialogOpenChange,
     handleConfirmTrainingTransition,
+    handleRequestDiscardCandidate,
+    handleDiscardDialogOpenChange,
+    handleConfirmDiscardCandidate,
   }
 }

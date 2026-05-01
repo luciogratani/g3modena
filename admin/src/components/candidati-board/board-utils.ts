@@ -78,6 +78,7 @@ export const MAIN_BOARD_STATUSES: CandidateStatus[] = [
   "colloquio",
   "formazione",
   "in_attesa",
+  "scartati",
 ]
 
 export function getNewColumnFilterVisibilityStorageKey(boardCity: string): string {
@@ -94,6 +95,7 @@ export function createEmptyColumns(): Record<CandidateStatus, string[]> {
     colloquio: [],
     formazione: [],
     in_attesa: [],
+    scartati: [],
     rimandati: [],
     archivio: [],
   }
@@ -190,7 +192,8 @@ export function moveCandidate(
     },
   }
   const clearedPostponeState = clearPostponeMetadataIfNeeded(nextState, activeId, targetColumn)
-  return clearTrainingSublaneIfNeeded(clearedPostponeState, activeId, targetColumn)
+  const clearedDiscardState = clearDiscardMetadataIfNeeded(clearedPostponeState, activeId, targetColumn)
+  return clearTrainingSublaneIfNeeded(clearedDiscardState, activeId, targetColumn)
 }
 
 type SerializedBoardV1 = {
@@ -400,7 +403,8 @@ export function moveCandidateToStatus(
     columns: nextColumns,
   }
   const clearedPostponeState = clearPostponeMetadataIfNeeded(nextState, candidateId, targetStatus)
-  return clearTrainingSublaneIfNeeded(clearedPostponeState, candidateId, targetStatus)
+  const clearedDiscardState = clearDiscardMetadataIfNeeded(clearedPostponeState, candidateId, targetStatus)
+  return clearTrainingSublaneIfNeeded(clearedDiscardState, candidateId, targetStatus)
 }
 
 function clearPostponeMetadataIfNeeded(
@@ -424,6 +428,41 @@ function clearPostponeMetadataIfNeeded(
         postponedUntil: undefined,
         postponeReason: undefined,
         postponeReturnStatus: undefined,
+      },
+    },
+  }
+}
+
+function clearDiscardMetadataIfNeeded(
+  state: CandidateBoardState,
+  candidateId: string,
+  targetStatus: CandidateStatus,
+): CandidateBoardState {
+  // When a candidate exits the discard lane, we clear discard metadata
+  // (reason key/note, timestamp, return status) to keep active lanes free of
+  // stale rejection data. Symmetric to clearPostponeMetadataIfNeeded.
+  if (targetStatus === "scartati") return state
+  const candidate = state.byId[candidateId]
+  if (!candidate) return state
+  if (
+    !candidate.discardReasonKey &&
+    !candidate.discardReasonNote &&
+    !candidate.discardedAt &&
+    !candidate.discardReturnStatus
+  ) {
+    return state
+  }
+
+  return {
+    ...state,
+    byId: {
+      ...state.byId,
+      [candidateId]: {
+        ...candidate,
+        discardReasonKey: undefined,
+        discardReasonNote: undefined,
+        discardedAt: undefined,
+        discardReturnStatus: undefined,
       },
     },
   }

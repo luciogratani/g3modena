@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Textarea } from "@/components/ui/textarea"
 import { CalendarIcon, Mail, Phone, Search } from "lucide-react"
-import type { Candidate, CandidateStatus } from "@/src/data/mockCandidates"
+import { DISCARD_REASON_LABELS, type Candidate, type CandidateStatus } from "@/src/data/mockCandidates"
 import { formatCandidateDate } from "./date-utils"
 import {
   getAgeFromBirthYear,
@@ -40,6 +40,7 @@ type CandidateDetailSheetProps = {
   onRequestInterview: (candidateId: string) => void
   onRequestTraining: (candidateId: string) => void
   onRequestPostpone: (candidateId: string) => void
+  onRestoreFromDiscard: (candidateId: string) => void
   onSaveGeneralNotes: (candidateId: string, notes: string) => void
   onSaveInterviewDetails: (
     candidateId: string,
@@ -124,6 +125,7 @@ export function CandidateDetailSheet({
   onRequestInterview,
   onRequestTraining,
   onRequestPostpone,
+  onRestoreFromDiscard,
   onSaveGeneralNotes,
   onSaveInterviewDetails,
   onSaveTrainingDetails,
@@ -237,15 +239,23 @@ export function CandidateDetailSheet({
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => onRequestInterview(candidate.id)}>
-              Pianifica colloquio
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => onRequestTraining(candidate.id)}>
-              Pianifica formazione
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => onRequestPostpone(candidate.id)}>
-              Rimanda candidatura
-            </Button>
+            {status !== "scartati" ? (
+              <>
+                <Button type="button" size="sm" variant="outline" onClick={() => onRequestInterview(candidate.id)}>
+                  Pianifica colloquio
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => onRequestTraining(candidate.id)}>
+                  Pianifica formazione
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => onRequestPostpone(candidate.id)}>
+                  Rimanda candidatura
+                </Button>
+              </>
+            ) : (
+              <Button type="button" size="sm" onClick={() => onRestoreFromDiscard(candidate.id)}>
+                Ripristina candidatura
+              </Button>
+            )}
           </div>
           <Separator />
           <section className="rounded-lg border bg-muted/30 p-4">
@@ -473,6 +483,26 @@ export function CandidateDetailSheet({
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
+            </section>
+          )}
+          {status === "scartati" && (
+            <section className="rounded-lg border bg-muted/30 p-4">
+              <p className="mb-3 text-sm font-medium">Dettagli scarto</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <DetailRow
+                  label="Motivo"
+                  value={candidate.discardReasonKey ? DISCARD_REASON_LABELS[candidate.discardReasonKey] : "Non indicato"}
+                />
+                <DetailRow
+                  label="Data scarto"
+                  value={candidate.discardedAt ? formatCandidateDate(candidate.discardedAt, "d MMMM yyyy") : "Non indicata"}
+                />
+                <DetailRow
+                  label="Nota"
+                  value={candidate.discardReasonNote?.trim() ? candidate.discardReasonNote : "Nessuna nota"}
+                />
+                <DetailRow label="Ritorno previsto" value={candidate.discardReturnStatus ?? "Nuovo"} />
+              </div>
             </section>
           )}
           {(status === "rimandati" || status === "in_attesa") && candidate.postponedUntil && (

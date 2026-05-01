@@ -7,10 +7,50 @@ export type CandidateStatus =
   | "colloquio"
   | "formazione"
   | "in_attesa"
+  | "scartati"
   | "rimandati"
   | "archivio"
 
 export type PostponeReturnStatus = "nuovo" | "colloquio" | "formazione"
+
+export type DiscardReturnStatus =
+  | "nuovo"
+  | "colloquio"
+  | "formazione"
+  | "in_attesa"
+  | "rimandati"
+
+export type DiscardReasonKey =
+  | "not_a_fit"
+  | "no_show"
+  | "declined_by_candidate"
+  | "unreachable"
+  | "duplicate"
+  | "failed_interview"
+  | "failed_training"
+  | "other"
+
+export const DISCARD_REASON_KEYS: DiscardReasonKey[] = [
+  "not_a_fit",
+  "no_show",
+  "declined_by_candidate",
+  "unreachable",
+  "duplicate",
+  "failed_interview",
+  "failed_training",
+  "other",
+]
+
+export const DISCARD_REASON_LABELS: Record<DiscardReasonKey, string> = {
+  not_a_fit: "Profilo non in linea",
+  no_show: "Non si e' presentato/a",
+  declined_by_candidate: "Candidato/a ha rifiutato",
+  unreachable: "Non raggiungibile",
+  duplicate: "Candidatura duplicata",
+  failed_interview: "Esito colloquio negativo",
+  failed_training: "Esito formazione negativo",
+  other: "Altro",
+}
 
 export type CandidateCity = "sassari" | "modena"
 export type InterviewAvailability = "mattina" | "pomeriggio"
@@ -59,6 +99,10 @@ export interface Candidate {
   postponedUntil?: string
   postponeReason?: string
   postponeReturnStatus?: PostponeReturnStatus
+  discardReasonKey?: DiscardReasonKey
+  discardReasonNote?: string
+  discardedAt?: string
+  discardReturnStatus?: DiscardReturnStatus
 }
 
 export const KANBAN_COLUMNS: { id: CandidateStatus; label: string }[] = [
@@ -66,6 +110,7 @@ export const KANBAN_COLUMNS: { id: CandidateStatus; label: string }[] = [
   { id: "colloquio", label: "Colloquio" },
   { id: "formazione", label: "Formazione" },
   { id: "in_attesa", label: "In Attesa" },
+  { id: "scartati", label: "Scartati" },
   { id: "rimandati", label: "Rimandati" },
   { id: "archivio", label: "Archivio" },
 ]

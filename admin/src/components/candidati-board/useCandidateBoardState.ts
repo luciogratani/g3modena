@@ -76,6 +76,10 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     trainingPhase,
     trainingDate,
     trainingNote,
+    discardDialogOpen,
+    discardCandidateId,
+    discardReasonKey,
+    discardReasonNote,
     setPostponeDate,
     setPostponeReason,
     setInterviewDate,
@@ -84,6 +88,8 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     setTrainingPhase,
     setTrainingDate,
     setTrainingNote,
+    setDiscardReasonKey,
+    setDiscardReasonNote,
     handleRequestPostponeCandidate,
     handleRequestInterviewCandidate,
     handleRequestTrainingCandidate,
@@ -93,6 +99,9 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     handleConfirmInterviewTransition,
     handleTrainingDialogOpenChange,
     handleConfirmTrainingTransition,
+    handleRequestDiscardCandidate,
+    handleDiscardDialogOpenChange,
+    handleConfirmDiscardCandidate,
   } = useBoardWorkflowDialogs({
     boardState,
     setBoardState,
@@ -241,6 +250,11 @@ export function useCandidateBoardState(boardCity: string = "modena") {
       return
     }
 
+    if (sourceStatus !== targetStatus && targetStatus === "scartati") {
+      handleRequestDiscardCandidate(activeId, sourceStatus)
+      return
+    }
+
     setBoardState((currentState) => moveCandidate(currentState, activeId, overId))
   }
 
@@ -274,6 +288,15 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     setBoardState((currentState) => moveCandidateToStatus(currentState, candidateId, "archivio"))
   }
 
+  function handleRestoreFromDiscard(candidateId: string) {
+    setBoardState((currentState) => {
+      const candidate = currentState.byId[candidateId]
+      if (!candidate) return currentState
+      const targetStatus = candidate.discardReturnStatus ?? "nuovo"
+      return moveCandidateToStatus(currentState, candidateId, targetStatus)
+    })
+  }
+
   function handlePromoteToWaiter(candidateId: string) {
     const candidate = boardState.byId[candidateId]
     if (!candidate) return
@@ -286,6 +309,7 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     : null
   const activeCandidate = activeCandidateId ? boardState.byId[activeCandidateId] ?? null : null
   const postponeCandidate = postponeCandidateId ? boardState.byId[postponeCandidateId] ?? null : null
+  const discardCandidate = discardCandidateId ? boardState.byId[discardCandidateId] ?? null : null
   const activeCandidateColumnStatus = activeCandidate
     ? getCurrentCandidateStatus(boardState.columns, activeCandidate.id)
     : null
@@ -318,6 +342,7 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     postponeDialogOpen,
     interviewDialogOpen,
     trainingDialogOpen,
+    discardDialogOpen,
     dailyRecapOpen,
     dailyRecapSkipToday,
     dailyRecap,
@@ -331,6 +356,9 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     trainingPhase,
     trainingDate,
     trainingNote,
+    discardCandidate,
+    discardReasonKey,
+    discardReasonNote,
     trainingSublanes: boardState.trainingSublanes,
     newColumnFilters,
     newColumnFilterVisibility,
@@ -346,6 +374,8 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     setTrainingPhase,
     setTrainingDate,
     setTrainingNote,
+    setDiscardReasonKey,
+    setDiscardReasonNote,
     setDailyRecapSkipToday,
     handleOpenDetail,
     handleDragStart,
@@ -362,11 +392,13 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     handleClearArchived,
     handleRestoreCandidate,
     handleRestoreArchivedCandidate,
+    handleRestoreFromDiscard,
     handleArchiveCandidate,
     handlePromoteToWaiter,
     handleRequestInterviewCandidate,
     handleRequestTrainingCandidate,
     handleRequestPostponeCandidate,
+    handleRequestDiscardCandidate,
     handleUpdateGeneralNotes,
     handleUpdateInterviewDetails,
     handleUpdateTrainingDetails,
@@ -377,6 +409,8 @@ export function useCandidateBoardState(boardCity: string = "modena") {
     handleConfirmInterviewTransition,
     handleTrainingDialogOpenChange,
     handleConfirmTrainingTransition,
+    handleDiscardDialogOpenChange,
+    handleConfirmDiscardCandidate,
     handleDailyRecapOpenChange,
     handleOpenRimandatiFromRecap,
   }

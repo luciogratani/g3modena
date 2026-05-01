@@ -17,8 +17,8 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 - [x] **A3 — Board e sidebar candidati dinamiche**  
   Sidebar **Candidati** e titoli pagina da **`listActiveCities()`** (ordine `sortOrder`); badge “Nuovo” per **slug** (`Record<string, number>`). Stato **`Page`**: `{ kind: static }` \| `{ kind: candidates, citySlug }` \| `{ kind: waiters, citySlug }`. Listener **`admin:cities:updated`** per ricalcolo città + badge. Board/parametri (`CandidatiBoard`, `board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`) su **slug stringa** generica. `getCandidateCityLabel()` da slug arbitrario (title case da `-`). **Camerieri:** stessa lista città attive ma **filtrata** a slug con storage supportato (`modena`, `sassari` — `SUPPORTED_WAITER_CITY_SLUGS` in `App.tsx`) fino ad estensione CRM multi-sede.
 
-- [ ] **A4 — Quinta colonna board**  
-  Da definire con workflow negli appunti; estensione modello/colonne pipeline se necessario.
+- [x] **A4 — Quinta colonna board "Scartati"** (2026-05-01)  
+  Quinta colonna kanban dedicata agli scarti con motivazione strutturata. Catalogo ragioni v1 (`DiscardReasonKey`, 8 chiavi: `not_a_fit`, `no_show`, `declined_by_candidate`, `unreachable`, `duplicate`, `failed_interview`, `failed_training`, `other`) + nota opzionale (obbligatoria se `other`, max 500 char). Entry: context menu **Scarta** + drop su colonna; il move avviene solo dopo conferma del dialog. Ripristino tramite **Ripristina** (context menu / sheet) che usa `discardReturnStatus` con fallback `nuovo`. Cleanup metadata simmetrico a `postpone` (`clearDiscardMetadataIfNeeded`). DB: migrazione `20260501000080_alter_candidates_discard.sql` estende `pipeline_stage` CHECK e aggiunge colonne `discard_reason_key|note|discarded_at|return_status` con CHECK whitelistati e indice parziale.
 
 - [ ] **A5 — Overview / dashboard**  
   Collegare KPI a dati reali o semi-reali (messaggi, pipeline, traffico) come da concept; senza tabella analytics dedicata finché non serve.
@@ -105,7 +105,7 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 ### Di solito non bloccanti per un primo rilascio / demo
 
 - **C4** — flush/export analytics (buffer già presente; utile ma non impedisce il sito).
-- **A4 / A5** — quinta colonna board, dashboard KPI raffinati.
+- **A5** — dashboard KPI raffinati (A4 chiuso).
 - Smoke test manuali Camerieri, dialog «Crea Cameriere» completo, refactor frammentazione (`CandidatiBoard`, `careers-form`, …) — qualità/tech debt, non prerequisito minimo funzionale.
 
 ---
@@ -114,4 +114,4 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: milestone **D1 + E1** (2026-05-01, SQL schema-only in `supabase/migrations`), milestone **C4** ingest analytics (2026-05-01), gate **L1–L5** e milestone **C2** (2026-04-30). Prossimo focus tecnico consigliato: **E2** (RLS), quindi gate **L1/L2/L4**.
+Ultimo aggiornamento checklist: milestone **A4** colonna *Scartati* (2026-05-01, schema + UI + cleanup metadata), milestone **D1 + E1** (2026-05-01, SQL schema-only in `supabase/migrations`), milestone **C4** ingest analytics (2026-05-01), gate **L1–L5** e milestone **C2** (2026-04-30). Prossimo focus tecnico consigliato: **E2** (RLS), quindi gate **L1/L2/L4**.

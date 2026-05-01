@@ -30,10 +30,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Drawer, DrawerContent } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
-import { KANBAN_COLUMNS, type TrainingSublaneType } from "@/src/data/mockCandidates"
+import {
+  DISCARD_REASON_KEYS,
+  DISCARD_REASON_LABELS,
+  KANBAN_COLUMNS,
+  type DiscardReasonKey,
+  type TrainingSublaneType,
+} from "@/src/data/mockCandidates"
 import { getCandidatesByStatus, MAIN_BOARD_STATUSES } from "@/src/components/candidati-board/board-utils"
 import { getAgeFromBirthYear, getFullName, getStatusLabel } from "./candidati-board/candidate-utils"
 import { CandidateDetailSheet } from "./candidati-board/CandidateDetailSheet"
@@ -166,6 +173,7 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
     postponeDialogOpen,
     interviewDialogOpen,
     trainingDialogOpen,
+    discardDialogOpen,
     dailyRecapOpen,
     dailyRecapSkipToday,
     dailyRecap,
@@ -179,6 +187,9 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
     trainingPhase,
     trainingDate,
     trainingNote,
+    discardCandidate,
+    discardReasonKey,
+    discardReasonNote,
     trainingSublanes,
     newColumnFilters,
     newColumnFilterVisibility,
@@ -194,6 +205,8 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
     setTrainingPhase,
     setTrainingDate,
     setTrainingNote,
+    setDiscardReasonKey,
+    setDiscardReasonNote,
     setDailyRecapSkipToday,
     handleOpenDetail,
     handleDragStart,
@@ -207,11 +220,13 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
     handleClearArchived,
     handleRestoreCandidate,
     handleRestoreArchivedCandidate,
+    handleRestoreFromDiscard,
     handleArchiveCandidate,
     handlePromoteToWaiter,
     handleRequestInterviewCandidate,
     handleRequestTrainingCandidate,
     handleRequestPostponeCandidate,
+    handleRequestDiscardCandidate,
     handleUpdateGeneralNotes,
     handleUpdateInterviewDetails,
     handleUpdateTrainingDetails,
@@ -222,6 +237,8 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
     handleConfirmInterviewTransition,
     handleTrainingDialogOpenChange,
     handleConfirmTrainingTransition,
+    handleDiscardDialogOpenChange,
+    handleConfirmDiscardCandidate,
     handleDailyRecapOpenChange,
     handleOpenRimandatiFromRecap,
   } = useCandidateBoardState(boardCity)
@@ -257,6 +274,8 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
                 onPostpone={handleRequestPostponeCandidate}
                 onArchive={handleArchiveCandidate}
                 onPromoteToWaiter={handlePromoteToWaiter}
+                onDiscard={handleRequestDiscardCandidate}
+                onRestoreFromDiscard={handleRestoreFromDiscard}
                 postponeReminderCounts={
                   id === "in_attesa"
                     ? {
@@ -571,6 +590,66 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
         </DialogContent>
       </Dialog>
 
+      <Dialog open={discardDialogOpen} onOpenChange={handleDiscardDialogOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Scarta candidatura</DialogTitle>
+            <DialogDescription>
+              Seleziona il motivo dello scarto
+              {discardCandidate ? ` per ${getFullName(discardCandidate)}` : ""}. Aggiungi una nota se vuoi
+              dare contesto.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Motivo</label>
+              <Select
+                value={discardReasonKey ?? undefined}
+                onValueChange={(value) => setDiscardReasonKey(value as DiscardReasonKey)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleziona un motivo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DISCARD_REASON_KEYS.map((reasonKey) => (
+                    <SelectItem key={reasonKey} value={reasonKey}>
+                      {DISCARD_REASON_LABELS[reasonKey]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="discard-note" className="text-sm font-medium">
+                {discardReasonKey === "other" ? "Nota (obbligatoria)" : "Nota (opzionale)"}
+              </label>
+              <Textarea
+                id="discard-note"
+                value={discardReasonNote}
+                onChange={(event) => setDiscardReasonNote(event.target.value)}
+                placeholder="Es. dettagli specifici, riferimento data, contesto."
+                rows={3}
+                maxLength={500}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleDiscardDialogOpenChange(false)}>
+              Annulla
+            </Button>
+            <Button
+              onClick={handleConfirmDiscardCandidate}
+              disabled={
+                !discardReasonKey ||
+                (discardReasonKey === "other" && !discardReasonNote.trim())
+              }
+            >
+              Conferma scarto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <DailyBoardRecapDialog
         open={dailyRecapOpen}
         skipToday={dailyRecapSkipToday}
@@ -588,6 +667,7 @@ export function CandidatiBoard({ boardCity = "modena" }: { boardCity?: string })
         onRequestInterview={handleRequestInterviewCandidate}
         onRequestTraining={handleRequestTrainingCandidate}
         onRequestPostpone={handleRequestPostponeCandidate}
+        onRestoreFromDiscard={handleRestoreFromDiscard}
         onSaveGeneralNotes={handleUpdateGeneralNotes}
         onSaveInterviewDetails={handleUpdateInterviewDetails}
         onSaveTrainingDetails={handleUpdateTrainingDetails}

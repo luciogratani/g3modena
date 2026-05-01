@@ -41,7 +41,8 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 ### Board candidature
 - [x] Board **parametrizzata per `citySlug` stringa** (città da config `listActiveCities`), senza union rigida solo Modena/Sassari; filtri colonna `Nuovo` e stato board aggiornati di conseguenza (`board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`).
 - [x] DnD stabile con `@dnd-kit` (riordino intra-colonna + movimenti inter-colonna).
-- [x] Workflow assistito con dialog su transizioni (`colloquio`, `formazione`, `in_attesa`).
+- [x] Workflow assistito con dialog su transizioni (`colloquio`, `formazione`, `in_attesa`, `scartati`).
+- [x] Quinta colonna **Scartati** con motivazione strutturata (`DiscardReasonKey` v1: `not_a_fit`, `no_show`, `declined_by_candidate`, `unreachable`, `duplicate`, `failed_interview`, `failed_training`, `other`) e nota libera (max 500 char, obbligatoria su `other`); ripristino verso `discardReturnStatus` (fallback `nuovo`) da context menu e `CandidateDetailSheet`. Cleanup metadata simmetrico al `postpone` (vedi *Discard policy*).
 - [x] `CandidateDetailSheet` evoluto (editing inline workflow, note, sezioni collassabili, quick actions).
 - [x] Recap operativo iniziale + reminder rimandati (`Scaduti`, `Oggi`, `Prossimi 7gg`).
 - [x] Formazione con sub-lane `Teoria`/`Pratica` e gestione fase attiva singola.
@@ -169,6 +170,7 @@ Integrazioni cross-modulo:
 - **Date policy**: evitare `new Date(...)` inline nei render; usare helper centralizzati e fallback.
 - **Board persistence policy**: persistenza locale versionata (non cross-device finche non c'e backend).
 - **Filters policy**: filtri `Nuovo` persistenti per citta; filtro nascosto => filtro disattivato/reset.
+- **Discard policy**: `scartati` è stato strutturato (catalogo ragioni v1 chiuso + nota opzionale). Il move avviene solo dopo conferma del dialog (parità con `colloquio`/`postpone`). Uscire dalla colonna (`Ripristina`, archivio, drop su altra colonna) ripulisce automaticamente `discardReasonKey|Note|At|ReturnStatus` via `clearDiscardMetadataIfNeeded`. `Promuovi a Cameriere` non è esposto in `scartati`.
 - **Contract policy**: nuove key CMS prima in `@g3/content-contract`, poi propagate ad admin/web.
 - **Auth policy**: fuori scope finche non parte lo step sicurezza.
 - **Campagne status policy**: usare `first_data_at` (primo `page_view` con `cid`) e `last_data_at` (ultimo evento attribuito) come uniche fonti canoniche.
@@ -196,7 +198,7 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 ### Decisioni schema da rispettare
 
 - **Città:** usare `cities.id` come FK (`city_id`) sulle tabelle operative; `cities.slug` sostituisce il concetto legacy `city_code` (`modena`, `sassari`) per URL, seed, export e mapping da dati locali.
-- **Candidati:** tabella `candidates` con mapping dal form web e stato workflow admin (`pipeline_stage` o equivalente). Allegati v1 come path diretti (`profile_photo_path`, `cv_path`), senza tabella attachment dedicata.
+- **Candidati:** tabella `candidates` con mapping dal form web e stato workflow admin (`pipeline_stage` set v1 = `nuovo|colloquio|formazione|in_attesa|scartati|rimandati|archivio`). Colonne discard strutturate: `discard_reason_key` (whitelist v1 + `other`), `discard_reason_note` (max 500 char, obbligatoria app-side se `other`), `discarded_at`, `discard_return_status`. Allegati v1 come path diretti (`profile_photo_path`, `cv_path`), senza tabella attachment dedicata.
 - **Staff:** tabella DB `staff`; la UI può continuare a chiamare il dominio “Camerieri”. Collegamento opzionale a candidato con `source_candidate_id`.
 - **CMS:** tabella `cms_sections` con `section_key`; `seo` è una riga speciale nella stessa tabella, non una tabella separata in v1.
 - **Contatti:** tabella `contact_messages` separata da analytics, con stato `nuovo|letto|archiviato`.
@@ -230,14 +232,15 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 Stato 2026-05-01: completati **audit ERD (D1)** e **migrazioni SQL v1 (E1)** in `supabase/migrations/`.
 
 - **Vincolo no-mock confermato:** migrazioni **schema-only**; nessun `INSERT` di dati demo/business.
-- **Tabelle create v1:** `cities`, `campaigns`, `candidates`, `staff`, `cms_sections`, `contact_messages`, `analytics_events`.
+- **Tabelle create v1:** `cities`, `campaigns`, `candidates` (alter `0080` per A4 *Scartati*), `staff`, `cms_sections`, `contact_messages`, `analytics_events`.
 - **Helper condiviso:** `pgcrypto` + trigger function `set_updated_at_timestamp()` (solo utilità tecnica).
 - **Scelte principali allineate ai contratti:**
   - `campaigns`: `cid` unique, stato derivato runtime (`first_data_at`/`last_data_at`), niente `status` persistito;
   - `candidates.languages`: `text[]` (payload web a lista);
   - `analytics_events`: append-only con `client_event_id` (idempotenza ingest) e `received_at`;
   - `cms_sections`: unique composito tenant+sezione (`NULLS NOT DISTINCT`, Postgres 15+);
-  - `contact_messages`: `updated_at` + workflow `nuovo|letto|archiviato`.
+  - `contact_messages`: `updated_at` + workflow `nuovo|letto|archiviato`;
+  - `candidates` (A4 / migrazione `0080`): `pipeline_stage` esteso con `scartati`; nuove colonne `discard_reason_key|note|discarded_at|return_status` con CHECK whitelistati e indice parziale `candidates_discard_reason_idx where discard_reason_key is not null`.
 - **Perimetro residuo:** E2 (RLS), E3 (Storage bucket/policy), E4 (adapter admin/web da localStorage a Supabase), E5 (Auth/guard).
 
 Riferimenti: `supabase/README.md`, `docs/CAMPAIGNS_CONTRACT.md`, `docs/ANALYTICS_INGEST_CONTRACT.md`, `docs/DB_CMS_INTEGRATION.md`.

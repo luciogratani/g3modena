@@ -46,6 +46,8 @@ type KanbanColumnProps = {
   onPostpone: (candidateId: string) => void
   onArchive: (candidateId: string) => void
   onPromoteToWaiter: (candidateId: string) => void
+  onDiscard: (candidateId: string) => void
+  onRestoreFromDiscard: (candidateId: string) => void
   postponeReminderCounts?: {
     overdueCount: number
     dueTodayCount: number
@@ -117,6 +119,8 @@ function CandidateList({
   onPostpone,
   onArchive,
   onPromoteToWaiter,
+  onDiscard,
+  onRestoreFromDiscard,
 }: {
   status: CandidateStatus
   candidates: Candidate[]
@@ -126,6 +130,8 @@ function CandidateList({
   onPostpone: (candidateId: string) => void
   onArchive: (candidateId: string) => void
   onPromoteToWaiter: (candidateId: string) => void
+  onDiscard: (candidateId: string) => void
+  onRestoreFromDiscard: (candidateId: string) => void
 }) {
   const sortableIds = useMemo(() => candidates.map((candidate) => candidate.id), [candidates])
   return (
@@ -142,6 +148,8 @@ function CandidateList({
             onPostpone={onPostpone}
             onArchive={onArchive}
             onPromoteToWaiter={onPromoteToWaiter}
+            onDiscard={onDiscard}
+            onRestoreFromDiscard={onRestoreFromDiscard}
           />
         ))}
       </div>
@@ -158,6 +166,8 @@ function FormazioneSublane({
   onPostpone,
   onArchive,
   onPromoteToWaiter,
+  onDiscard,
+  onRestoreFromDiscard,
 }: {
   lane: TrainingSublane
   candidates: Candidate[]
@@ -167,6 +177,8 @@ function FormazioneSublane({
   onPostpone: (candidateId: string) => void
   onArchive: (candidateId: string) => void
   onPromoteToWaiter: (candidateId: string) => void
+  onDiscard: (candidateId: string) => void
+  onRestoreFromDiscard: (candidateId: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `training-lane-${lane.id}` })
   const isTeoriaLane = lane.type === "teoria"
@@ -205,6 +217,8 @@ function FormazioneSublane({
           onPostpone={onPostpone}
           onArchive={onArchive}
           onPromoteToWaiter={onPromoteToWaiter}
+          onDiscard={onDiscard}
+          onRestoreFromDiscard={onRestoreFromDiscard}
         />
       )}
     </section>
@@ -229,6 +243,8 @@ export function KanbanColumn({
   onPostpone,
   onArchive,
   onPromoteToWaiter,
+  onDiscard,
+  onRestoreFromDiscard,
   postponeReminderCounts,
   trainingTodayCount,
   dragMode = false,
@@ -340,6 +356,8 @@ export function KanbanColumn({
               onPostpone={onPostpone}
               onArchive={onArchive}
               onPromoteToWaiter={onPromoteToWaiter}
+              onDiscard={onDiscard}
+              onRestoreFromDiscard={onRestoreFromDiscard}
             />
             {candidates.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Nessun elemento</p>}
           </div>
@@ -377,6 +395,8 @@ export function KanbanColumn({
                   onPostpone={onPostpone}
                   onArchive={onArchive}
                   onPromoteToWaiter={onPromoteToWaiter}
+                  onDiscard={onDiscard}
+                  onRestoreFromDiscard={onRestoreFromDiscard}
                 />
               </section>
             ) : null}
@@ -400,6 +420,8 @@ export function KanbanColumn({
                   onPostpone={onPostpone}
                   onArchive={onArchive}
                   onPromoteToWaiter={onPromoteToWaiter}
+                  onDiscard={onDiscard}
+                  onRestoreFromDiscard={onRestoreFromDiscard}
                 />
               </section>
             ) : null}
@@ -415,6 +437,8 @@ export function KanbanColumn({
                 onPostpone={onPostpone}
                 onArchive={onArchive}
                 onPromoteToWaiter={onPromoteToWaiter}
+                onDiscard={onDiscard}
+                onRestoreFromDiscard={onRestoreFromDiscard}
               />
             ))}
 

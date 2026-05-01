@@ -4,6 +4,7 @@ import { CSS } from "@dnd-kit/utilities"
 import {
   Archive,
   Award,
+  Ban,
   Calendar,
   GraduationCap,
   Car,
@@ -12,6 +13,7 @@ import {
   MessageCircle,
   Phone,
   Reply,
+  Undo2,
   Users,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -44,6 +46,8 @@ type CandidateCardProps = {
   onPostpone: (candidateId: string) => void
   onArchive: (candidateId: string) => void
   onPromoteToWaiter: (candidateId: string) => void
+  onDiscard: (candidateId: string) => void
+  onRestoreFromDiscard: (candidateId: string) => void
 }
 
 export function CandidateCard({
@@ -55,6 +59,8 @@ export function CandidateCard({
   onPostpone,
   onArchive,
   onPromoteToWaiter,
+  onDiscard,
+  onRestoreFromDiscard,
 }: CandidateCardProps) {
   const [sideImageFailed, setSideImageFailed] = useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -215,25 +221,40 @@ export function CandidateCard({
           <Mail className="size-4" />
           Email
         </ContextMenuItem>
+        {status !== "scartati" ? (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onScheduleInterview(candidate.id)}>
+              <Calendar className="size-4" />
+              Pianifica colloquio
+            </ContextMenuItem>
+            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onPlanTraining(candidate.id)}>
+              <GraduationCap className="size-4" />
+              Pianifica formazione
+            </ContextMenuItem>
+            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onPostpone(candidate.id)}>
+              <Reply className="size-4" />
+              Rimanda
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem className="flex items-center gap-2" onSelect={() => onPromoteToWaiter(candidate.id)}>
+              <Users className="size-4" />
+              Promuovi a Cameriere
+            </ContextMenuItem>
+          </>
+        ) : null}
         <ContextMenuSeparator />
-        <ContextMenuItem className="flex items-center gap-2" onSelect={() => onScheduleInterview(candidate.id)}>
-          <Calendar className="size-4" />
-          Pianifica colloquio
-        </ContextMenuItem>
-        <ContextMenuItem className="flex items-center gap-2" onSelect={() => onPlanTraining(candidate.id)}>
-          <GraduationCap className="size-4" />
-          Pianifica formazione
-        </ContextMenuItem>
-        <ContextMenuItem className="flex items-center gap-2" onSelect={() => onPostpone(candidate.id)}>
-          <Reply className="size-4" />
-          Rimanda
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem className="flex items-center gap-2" onSelect={() => onPromoteToWaiter(candidate.id)}>
-          <Users className="size-4" />
-          Promuovi a Cameriere
-        </ContextMenuItem>
-        <ContextMenuSeparator />
+        {status === "scartati" ? (
+          <ContextMenuItem className="flex items-center gap-2" onSelect={() => onRestoreFromDiscard(candidate.id)}>
+            <Undo2 className="size-4" />
+            Ripristina
+          </ContextMenuItem>
+        ) : status !== "archivio" ? (
+          <ContextMenuItem className="flex items-center gap-2" onSelect={() => onDiscard(candidate.id)}>
+            <Ban className="size-4" />
+            Scarta
+          </ContextMenuItem>
+        ) : null}
         <ContextMenuItem className="flex items-center gap-2" onSelect={() => onArchive(candidate.id)}>
           <Archive className="size-4" />
           Archivia
