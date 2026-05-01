@@ -43,6 +43,7 @@ import { CamerieriPage } from "./components/camerieri/CamerieriPage"
 import { CampagnePage } from "./components/campagne/CampagnePage"
 import { CitiesPage } from "./components/cities/CitiesPage"
 import { CITIES_UPDATED_EVENT, listActiveCities } from "./components/cities/storage"
+import type { OfficeCity } from "./components/cities/types"
 import { SettingsPage } from "./components/SettingsPage"
 import { SeoSettingsPage } from "./components/SeoSettingsPage"
 import { CANDIDATES, type Candidate } from "./data/mockCandidates"
@@ -115,7 +116,7 @@ export default function App() {
   const [authSession, setAuthSession] = useState<Session | null>(null)
   const [page, setPage] = useState<Page>({ kind: "static", value: "dashboard" })
   const [themePreference, setThemePreference] = useState<ThemePreference>(getInitialThemePreference)
-  const [activeCities, setActiveCities] = useState(() => listActiveCities())
+  const [activeCities, setActiveCities] = useState<OfficeCity[]>([])
   const activeCitySlugs = useMemo(() => activeCities.map((city) => city.slug), [activeCities])
   const [newCandidatesByCity, setNewCandidatesByCity] = useState<Record<string, number>>(() =>
     getNewCandidatesByCityCounts(activeCitySlugs),
@@ -173,13 +174,18 @@ export default function App() {
   }, [themePreference])
 
   useEffect(() => {
-    function refreshCandidateCounts() {
-      const cities = listActiveCities()
-      setActiveCities(cities)
-      setNewCandidatesByCity(getNewCandidatesByCityCounts(cities.map((city) => city.slug)))
+    async function refreshCandidateCounts() {
+      try {
+        const cities = await listActiveCities()
+        setActiveCities(cities)
+        setNewCandidatesByCity(getNewCandidatesByCityCounts(cities.map((city) => city.slug)))
+      } catch {
+        setActiveCities([])
+        setNewCandidatesByCity({})
+      }
     }
 
-    refreshCandidateCounts()
+    void refreshCandidateCounts()
     window.addEventListener("admin:candidates:board-updated", refreshCandidateCounts)
     window.addEventListener(CITIES_UPDATED_EVENT, refreshCandidateCounts)
     window.addEventListener("focus", refreshCandidateCounts)

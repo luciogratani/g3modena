@@ -1,4 +1,5 @@
 export type ContactMessageStatus = "nuovo" | "letto" | "archiviato"
+export type ContactMessageSource = "web_contact_form" | "admin_manual" | "import"
 
 export type ContactMessage = {
   id: string
@@ -10,5 +11,5 @@ export type ContactMessage = {
   message: string
   status: ContactMessageStatus
   createdAt: string
-  source: "web_contact_form"
+  source: ContactMessageSource
 }

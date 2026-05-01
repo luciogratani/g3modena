@@ -32,7 +32,11 @@ supabase/
     ├── 20260501000100_e2b_policies_authenticated_admin.sql
     ├── 20260501000110_e2b_policies_anon_public.sql
     ├── 20260501000120_e2b_campaign_lookup_bridge.sql    RPC cid -> campaign_id
-    └── 20260501000130_e2b_hardening_grants_and_policy_smoke.sql
+    ├── 20260501000130_e2b_hardening_grants_and_policy_smoke.sql
+    └── 20260501000140_e3_storage_careers.sql            bucket allegati candidature
+└── functions/
+    ├── contact-submissions/                             receiver form contatti
+    └── career-submissions/                              receiver candidature web
 ```
 
 L'ordine numerico riflette l'ordine consigliato in
@@ -59,6 +63,85 @@ supabase db push
 > Nota: il file `supabase/config.toml` non è committato qui per evitare di
 > fissare un `project_id` specifico. Dopo `supabase link --project-ref <ref>`
 > il file viene rigenerato in locale.
+
+### Deploy receiver candidature (L1)
+
+Il receiver `career-submissions` è una Supabase Edge Function server-side:
+
+```bash
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+supabase secrets set CAREERS_ALLOWED_ORIGINS=https://g3modena.com
+supabase functions deploy career-submissions
+```
+
+Env web production:
+
+```bash
+VITE_CAREER_ENDPOINT=https://<project-ref>.functions.supabase.co/career-submissions
+VITE_CAREER_SUBMIT_FORMAT=multipart
+```
+
+Prerequisiti operativi:
+
+1. `supabase db push` deve aver applicato anche `20260501000140_e3_storage_careers.sql`;
+2. `public.cities` deve contenere righe attive per gli slug inviati dal sito (es. `modena`, `sassari`);
+3. `SUPABASE_SERVICE_ROLE_KEY` deve restare solo nei secrets della Function, mai in env Vite/client.
+
+Smoke manuale multipart:
+
+```bash
+curl -i -X POST "$VITE_CAREER_ENDPOINT" \
+  -F officeCitySlug=modena \
+  -F fullName="Mario Rossi" \
+  -F email="mario.rossi@example.com" \
+  -F phone="+393331234567" \
+  -F age=24 \
+  -F city=Modena \
+  -F availability=Immediata \
+  -F educationLevel=Liceo \
+  -F isAwayStudent=no \
+  -F 'languages=["Italiano","Inglese"]' \
+  -F hasDriverLicense=yes \
+  -F plansNextTwoYears="" \
+  -F jobAttraction="Mi interessa lavorare negli eventi." \
+  -F hasRelevantExperience=no \
+  -F privacyConsentAccepted=true \
+  -F profilePhoto=@/path/to/photo.jpg \
+  -F cv=@/path/to/cv.pdf
+```
+
+### Deploy receiver contatti (L2)
+
+Il receiver `contact-submissions` riceve JSON dal form pubblico e inserisce
+solo righe `source = 'web_contact_form'` / `status = 'nuovo'` in
+`public.contact_messages`.
+
+```bash
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+supabase secrets set CONTACT_ALLOWED_ORIGINS=https://g3modena.com
+supabase functions deploy contact-submissions
+```
+
+Env web production:
+
+```bash
+VITE_CONTACT_ENDPOINT=https://<project-ref>.functions.supabase.co/contact-submissions
+```
+
+Smoke manuale JSON:
+
+```bash
+curl -i -X POST "$VITE_CONTACT_ENDPOINT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullName": "Mario Rossi",
+    "company": "Rossi Eventi",
+    "email": "mario.rossi@example.com",
+    "phone": "+393331234567",
+    "city": "Modena",
+    "message": "Vorrei informazioni per un evento aziendale."
+  }'
+```
 
 ### Verifica migrazioni E2b su progetto remoto pulito
 
@@ -90,13 +173,13 @@ Se non vuoi usare CLI, lo stesso smoke pack è incollabile nel SQL Editor Supaba
 - **Seed di business**: nessuna città, campagna, candidato, messaggio o
   evento analytics. Anche `cities` (Modena/Sassari) resta vuota: il seed
   reale arriva via admin in E4 o via INSERT del cliente.
-- **Storage**: bucket (`site-media`, `campaign-previews`, `careers-photos`,
-  `careers-cv`) e relative policy sono ambito **E3**. Le tabelle qui
-  prevedono solo path testuali (`creative_image_path`, `profile_photo_path`,
-  `cv_path`, `avatar_path`).
-- **Funzioni Edge / triggers di business** (es. update di `first_data_at` /
-  `last_data_at` su campaigns dagli ingest): da definire quando si
-  collegano gli adapter (E4) e l'ingest reale.
+- **Storage residuo**: `careers-photos` e `careers-cv` sono creati per L1 in
+  `20260501000140`; restano fuori `site-media`, `campaign-previews` e le policy
+  avanzate per media CMS/campagne.
+- **Funzioni Edge / triggers di business residui** (es. update di
+  `first_data_at` / `last_data_at` su campaigns dagli ingest): da definire
+  quando si collegano gli adapter (E4) e l'ingest reale. L1 introduce solo
+  `career-submissions`; L2 introduce `contact-submissions`.
 
 ## Mapping colonne ↔ codice client
 
@@ -132,9 +215,10 @@ allineate qui (fonte autoritativa: i contratti dedicati):
 
 1. **E2 completato (E2b baseline)**: RLS + policy + grants minimi implementati
    in `20260501000090`…`20260501000130`.
-2. **E3 — Storage**: bucket dedicati e policy.
-3. **E4 — Adapter admin**: sostituzione `localStorage` con fetch Supabase
-   (cities, board candidati, contact messages, staff, campaigns).
+2. **E3 — Storage**: bucket candidature (`careers-photos`, `careers-cv`) già
+   creati per L1; restano media CMS/campagne.
+3. **E4 — Adapter admin**: `contact_messages` è collegato a Supabase per L2;
+   restano cities, board candidati, staff, campaigns e CMS dove applicabile.
 4. **E5 — Auth + guard route**.
 
 ## RLS matrix v1 (E2b)

@@ -1,8 +1,13 @@
+import type { PostgrestError } from "@supabase/supabase-js"
+import { hasSupabaseConfig, supabase } from "../../lib/supabase"
 import type { OfficeCity } from "./types"
 
-type SerializedCitiesV1 = {
-  version: 1
-  items: OfficeCity[]
+type CityRow = {
+  id: string
+  slug: string
+  display_name: string
+  is_active: boolean
+  sort_order: number
 }
 
 type SaveCityInput = {
@@ -23,24 +28,6 @@ type DeleteCityResult = {
 }
 
 const LEGACY_LOCKED_SLUGS = new Set(["modena", "sassari"])
-const STORAGE_VERSION = 1
-
-const SEEDED_CITIES: OfficeCity[] = [
-  {
-    id: "7f52706d-85f3-40d8-98d8-c55cbe0fa997",
-    slug: "modena",
-    displayName: "Modena",
-    isActive: true,
-    sortOrder: 10,
-  },
-  {
-    id: "dc5f7ed2-0b8d-432f-9a01-29a230f8539b",
-    slug: "sassari",
-    displayName: "Sassari",
-    isActive: true,
-    sortOrder: 20,
-  },
-]
 
 export const CITIES_STORAGE_KEY = "admin:cities:v1"
 export const CITIES_UPDATED_EVENT = "admin:cities:updated"
@@ -67,75 +54,81 @@ function normalizeSortOrder(items: OfficeCity[]): OfficeCity[] {
   }))
 }
 
-function sanitizeCity(raw: unknown): OfficeCity | null {
-  if (!raw || typeof raw !== "object") return null
-  const item = raw as Partial<OfficeCity>
-  if (typeof item.id !== "string" || !item.id.trim()) return null
-  if (typeof item.displayName !== "string" || !item.displayName.trim()) return null
-  if (typeof item.slug !== "string") return null
-  const normalizedSlug = normalizeSlug(item.slug)
-  if (!normalizedSlug) return null
-  const parsedSortOrder =
-    typeof item.sortOrder === "number" && Number.isFinite(item.sortOrder)
-      ? Math.max(0, Math.round(item.sortOrder))
-      : 0
+function mapCityRow(row: CityRow): OfficeCity {
   return {
-    id: item.id.trim(),
-    slug: normalizedSlug,
-    displayName: item.displayName.trim(),
-    isActive: typeof item.isActive === "boolean" ? item.isActive : true,
-    sortOrder: parsedSortOrder,
+    id: row.id,
+    slug: row.slug,
+    displayName: row.display_name,
+    isActive: row.is_active,
+    sortOrder: row.sort_order,
   }
 }
 
-function parseStorage(rawValue: string | null): OfficeCity[] {
-  if (!rawValue) return SEEDED_CITIES
-  try {
-    const parsed = JSON.parse(rawValue) as Partial<SerializedCitiesV1>
-    if (parsed.version !== STORAGE_VERSION || !Array.isArray(parsed.items)) return SEEDED_CITIES
-
-    const seenIds = new Set<string>()
-    const seenSlugs = new Set<string>()
-    const sanitized = parsed.items
-      .map(sanitizeCity)
-      .filter((city): city is OfficeCity => Boolean(city))
-      .filter((city) => {
-        if (seenIds.has(city.id) || seenSlugs.has(city.slug)) return false
-        seenIds.add(city.id)
-        seenSlugs.add(city.slug)
-        return true
-      })
-
-    return normalizeSortOrder(sanitized.length > 0 ? sanitized : SEEDED_CITIES)
-  } catch {
-    return SEEDED_CITIES
+function getSupabaseClient() {
+  if (!hasSupabaseConfig || !supabase) {
+    throw new Error("Supabase admin non configurato. Verifica VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.")
   }
+  return supabase
 }
 
-function saveCities(cities: OfficeCity[]): void {
+function dispatchCitiesUpdatedEvent(): void {
   if (typeof window === "undefined") return
-  const payload: SerializedCitiesV1 = {
-    version: STORAGE_VERSION,
-    items: normalizeSortOrder(cities),
-  }
-  localStorage.setItem(CITIES_STORAGE_KEY, JSON.stringify(payload))
   window.dispatchEvent(new CustomEvent(CITIES_UPDATED_EVENT))
 }
 
-function ensureUniqueSlug(cities: OfficeCity[], slug: string, excludingId?: string): void {
-  const duplicate = cities.some((city) => city.slug === slug && city.id !== excludingId)
-  if (duplicate) {
-    throw new Error(`La slug "${slug}" e gia in uso da un'altra sede.`)
+function toCityError(error: PostgrestError, fallbackMessage: string): Error {
+  if (error.code === "23505") {
+    return new Error("La slug scelta e gia in uso da un'altra sede.")
+  }
+  if (error.code === "23503") {
+    return new Error("Questa sede e gia referenziata da altri dati. Disattivala invece di eliminarla.")
+  }
+  return new Error(error.message || fallbackMessage)
+}
+
+function validateCityInput(input: SaveCityInput | UpdateCityInput): {
+  slug: string
+  displayName: string
+  isActive: boolean
+} {
+  const slug = normalizeSlug(input.slug)
+  if (!slug) {
+    throw new Error("Inserisci una slug valida (es. bologna).")
+  }
+  const displayName = input.displayName.trim()
+  if (!displayName) {
+    throw new Error("Il nome sede e obbligatorio.")
+  }
+  return {
+    slug,
+    displayName,
+    isActive: typeof input.isActive === "boolean" ? input.isActive : true,
   }
 }
 
-export function loadCities(): OfficeCity[] {
-  if (typeof window === "undefined") return SEEDED_CITIES
-  return parseStorage(localStorage.getItem(CITIES_STORAGE_KEY))
+export async function loadCities(): Promise<OfficeCity[]> {
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from("cities")
+    .select("id, slug, display_name, is_active, sort_order")
+    .order("sort_order", { ascending: true })
+    .order("slug", { ascending: true })
+
+  if (error) throw toCityError(error, "Impossibile caricare le sedi.")
+  return (data ?? []).map((row) => mapCityRow(row as CityRow))
 }
 
-export function listActiveCities(): OfficeCity[] {
-  return loadCities().filter((city) => city.isActive)
+export async function listActiveCities(): Promise<OfficeCity[]> {
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from("cities")
+    .select("id, slug, display_name, is_active, sort_order")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("slug", { ascending: true })
+
+  if (error) throw toCityError(error, "Impossibile caricare le sedi attive.")
+  return (data ?? []).map((row) => mapCityRow(row as CityRow))
 }
 
 export function isCityDeleteLocked(city: OfficeCity): boolean {
@@ -152,72 +145,66 @@ export function canDeleteCity(city: OfficeCity): DeleteCityResult {
   return { deleted: true }
 }
 
-export function createCity(input: SaveCityInput): OfficeCity {
-  const slug = normalizeSlug(input.slug)
-  if (!slug) {
-    throw new Error("Inserisci una slug valida (es. bologna).")
-  }
-  const displayName = input.displayName.trim()
-  if (!displayName) {
-    throw new Error("Il nome sede e obbligatorio.")
-  }
-
-  const cities = loadCities()
-  ensureUniqueSlug(cities, slug)
-
+export async function createCity(input: SaveCityInput): Promise<OfficeCity> {
+  const client = getSupabaseClient()
+  const { slug, displayName, isActive } = validateCityInput(input)
+  const cities = await loadCities()
   const maxSortOrder = cities.reduce((acc, city) => Math.max(acc, city.sortOrder), 0)
-  const created: OfficeCity = {
-    id: crypto.randomUUID(),
-    slug,
-    displayName,
-    isActive: typeof input.isActive === "boolean" ? input.isActive : true,
-    sortOrder: maxSortOrder + 10,
-  }
 
-  saveCities([...cities, created])
-  return created
+  const { data, error } = await client
+    .from("cities")
+    .insert({
+      slug,
+      display_name: displayName,
+      is_active: isActive,
+      sort_order: maxSortOrder + 10,
+    })
+    .select("id, slug, display_name, is_active, sort_order")
+    .single()
+
+  if (error) throw toCityError(error, "Impossibile creare la sede.")
+  dispatchCitiesUpdatedEvent()
+  return mapCityRow(data as CityRow)
 }
 
-export function updateCity(cityId: string, input: UpdateCityInput): OfficeCity {
-  const cities = loadCities()
-  const index = cities.findIndex((city) => city.id === cityId)
-  if (index < 0) throw new Error("Sede non trovata.")
+export async function updateCity(cityId: string, input: UpdateCityInput): Promise<OfficeCity> {
+  const client = getSupabaseClient()
+  const { slug, displayName, isActive } = validateCityInput(input)
+  const { data, error } = await client
+    .from("cities")
+    .update({
+      slug,
+      display_name: displayName,
+      is_active: isActive,
+    })
+    .eq("id", cityId)
+    .select("id, slug, display_name, is_active, sort_order")
+    .maybeSingle()
 
-  const slug = normalizeSlug(input.slug)
-  if (!slug) {
-    throw new Error("Inserisci una slug valida (es. bologna).")
-  }
-  const displayName = input.displayName.trim()
-  if (!displayName) {
-    throw new Error("Il nome sede e obbligatorio.")
-  }
-
-  ensureUniqueSlug(cities, slug, cityId)
-  const updated: OfficeCity = {
-    ...cities[index],
-    slug,
-    displayName,
-    isActive: input.isActive,
-  }
-  const next = [...cities]
-  next[index] = updated
-  saveCities(next)
-  return updated
+  if (error) throw toCityError(error, "Impossibile aggiornare la sede.")
+  if (!data) throw new Error("Sede non trovata.")
+  dispatchCitiesUpdatedEvent()
+  return mapCityRow(data as CityRow)
 }
 
-export function setCityActive(cityId: string, isActive: boolean): OfficeCity {
-  const cities = loadCities()
-  const index = cities.findIndex((city) => city.id === cityId)
-  if (index < 0) throw new Error("Sede non trovata.")
-  const updated: OfficeCity = { ...cities[index], isActive }
-  const next = [...cities]
-  next[index] = updated
-  saveCities(next)
-  return updated
+export async function setCityActive(cityId: string, isActive: boolean): Promise<OfficeCity> {
+  const client = getSupabaseClient()
+  const { data, error } = await client
+    .from("cities")
+    .update({ is_active: isActive })
+    .eq("id", cityId)
+    .select("id, slug, display_name, is_active, sort_order")
+    .maybeSingle()
+
+  if (error) throw toCityError(error, "Impossibile aggiornare lo stato della sede.")
+  if (!data) throw new Error("Sede non trovata.")
+  dispatchCitiesUpdatedEvent()
+  return mapCityRow(data as CityRow)
 }
 
-export function moveCity(cityId: string, direction: "up" | "down"): OfficeCity[] {
-  const ordered = normalizeSortOrder(loadCities())
+export async function moveCity(cityId: string, direction: "up" | "down"): Promise<OfficeCity[]> {
+  const client = getSupabaseClient()
+  const ordered = normalizeSortOrder(await loadCities())
   const index = ordered.findIndex((city) => city.id === cityId)
   if (index < 0) throw new Error("Sede non trovata.")
 
@@ -229,18 +216,32 @@ export function moveCity(cityId: string, direction: "up" | "down"): OfficeCity[]
   next[index] = next[targetIndex]
   next[targetIndex] = currentItem
   const normalized = normalizeSortOrder(next)
-  saveCities(normalized)
+
+  for (const city of normalized) {
+    const { error } = await client.from("cities").update({ sort_order: city.sortOrder }).eq("id", city.id)
+    if (error) throw toCityError(error, "Impossibile riordinare le sedi.")
+  }
+
+  dispatchCitiesUpdatedEvent()
   return normalized
 }
 
-export function deleteCity(cityId: string): DeleteCityResult {
-  const cities = loadCities()
+export async function deleteCity(cityId: string): Promise<DeleteCityResult> {
+  const cities = await loadCities()
   const target = cities.find((city) => city.id === cityId)
   if (!target) return { deleted: false, reason: "Sede non trovata." }
   const gate = canDeleteCity(target)
   if (!gate.deleted) return gate
 
-  const next = cities.filter((city) => city.id !== cityId)
-  saveCities(next)
+  const client = getSupabaseClient()
+  const { error } = await client.from("cities").delete().eq("id", cityId)
+  if (error) {
+    return {
+      deleted: false,
+      reason: toCityError(error, "Impossibile eliminare la sede.").message,
+    }
+  }
+
+  dispatchCitiesUpdatedEvent()
   return { deleted: true }
 }

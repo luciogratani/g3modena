@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
 import { ArrowDown, ArrowUp, Building2, Pencil, Plus, Trash2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
@@ -59,7 +59,9 @@ function normalizeSlug(raw: string): string {
 }
 
 export function CitiesPage() {
-  const [cities, setCities] = useState<OfficeCity[]>(() => loadCities())
+  const [cities, setCities] = useState<OfficeCity[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isMutating, setIsMutating] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingCity, setEditingCity] = useState<OfficeCity | null>(null)
@@ -76,20 +78,33 @@ export function CitiesPage() {
     [cities],
   )
 
-  useEffect(() => {
-    function refreshCities() {
-      setCities(loadCities())
-    }
-
-    window.addEventListener(CITIES_UPDATED_EVENT, refreshCities)
-    window.addEventListener("storage", refreshCities)
-    window.addEventListener("focus", refreshCities)
-    return () => {
-      window.removeEventListener(CITIES_UPDATED_EVENT, refreshCities)
-      window.removeEventListener("storage", refreshCities)
-      window.removeEventListener("focus", refreshCities)
+  const refreshCities = useCallback(async (options?: { showLoading?: boolean }) => {
+    if (options?.showLoading) setIsLoading(true)
+    try {
+      const nextCities = await loadCities()
+      setCities(nextCities)
+      setErrorMessage(null)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Impossibile caricare le sedi.")
+    } finally {
+      if (options?.showLoading) setIsLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    function refreshCitiesFromEvent() {
+      void refreshCities()
+    }
+
+    void refreshCities({ showLoading: true })
+
+    window.addEventListener(CITIES_UPDATED_EVENT, refreshCitiesFromEvent)
+    window.addEventListener("focus", refreshCitiesFromEvent)
+    return () => {
+      window.removeEventListener(CITIES_UPDATED_EVENT, refreshCitiesFromEvent)
+      window.removeEventListener("focus", refreshCitiesFromEvent)
+    }
+  }, [refreshCities])
 
   function resetFormState() {
     setFormState(INITIAL_FORM)
@@ -120,7 +135,7 @@ export function CitiesPage() {
     resetFormState()
   }
 
-  function persistForm(forceSlugChange: boolean) {
+  async function persistForm(forceSlugChange: boolean) {
     const normalizedSlug = normalizeSlug(formState.slug)
     if (!normalizedSlug) {
       setErrorMessage("La slug non e valida. Usa lettere, numeri e trattini.")
@@ -133,26 +148,29 @@ export function CitiesPage() {
     }
 
     try {
+      setIsMutating(true)
       if (editingCity) {
-        updateCity(editingCity.id, {
+        await updateCity(editingCity.id, {
           displayName: formState.displayName,
           slug: normalizedSlug,
           isActive: formState.isActive,
         })
       } else {
-        createCity({
+        await createCity({
           displayName: formState.displayName,
           slug: normalizedSlug,
           isActive: formState.isActive,
         })
       }
-      setCities(loadCities())
+      await refreshCities()
       setErrorMessage(null)
       closeDialog()
       return true
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Operazione non completata.")
       return false
+    } finally {
+      setIsMutating(false)
     }
   }
 
@@ -161,35 +179,48 @@ export function CitiesPage() {
     void persistForm(false)
   }
 
-  function handleToggleActive(city: OfficeCity, checked: boolean) {
+  async function handleToggleActive(city: OfficeCity, checked: boolean) {
     try {
-      setCityActive(city.id, checked)
-      setCities(loadCities())
+      setIsMutating(true)
+      await setCityActive(city.id, checked)
+      await refreshCities()
       setErrorMessage(null)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Impossibile aggiornare lo stato.")
+    } finally {
+      setIsMutating(false)
     }
   }
 
-  function handleMove(city: OfficeCity, direction: "up" | "down") {
+  async function handleMove(city: OfficeCity, direction: "up" | "down") {
     try {
-      moveCity(city.id, direction)
-      setCities(loadCities())
+      setIsMutating(true)
+      await moveCity(city.id, direction)
+      await refreshCities()
       setErrorMessage(null)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Impossibile riordinare la sede.")
+    } finally {
+      setIsMutating(false)
     }
   }
 
-  function handleDelete(city: OfficeCity) {
-    const result = deleteCity(city.id)
-    if (!result.deleted) {
-      setErrorMessage(result.reason ?? "Eliminazione non consentita.")
-      return
+  async function handleDelete(city: OfficeCity) {
+    try {
+      setIsMutating(true)
+      const result = await deleteCity(city.id)
+      if (!result.deleted) {
+        setErrorMessage(result.reason ?? "Eliminazione non consentita.")
+        return
+      }
+      setDeleteTarget(null)
+      await refreshCities()
+      setErrorMessage(null)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Eliminazione non consentita.")
+    } finally {
+      setIsMutating(false)
     }
-    setDeleteTarget(null)
-    setCities(loadCities())
-    setErrorMessage(null)
   }
 
   return (
@@ -197,7 +228,7 @@ export function CitiesPage() {
       <header className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Sedi</h1>
         <p className="mt-1 text-muted-foreground">
-          Source of truth locale delle citta operative del backoffice (pre-DB).
+          Source of truth Supabase delle citta operative del backoffice.
         </p>
       </header>
 
@@ -212,7 +243,7 @@ export function CitiesPage() {
               Le sedi disattivate restano nello storico admin ma non verranno usate nei nuovi flussi.
             </CardDescription>
           </div>
-          <Button type="button" onClick={openCreateDialog} aria-label="Crea nuova sede">
+          <Button type="button" onClick={openCreateDialog} disabled={isLoading} aria-label="Crea nuova sede">
             <Plus className="mr-2 size-4" />
             Crea sede
           </Button>
@@ -225,11 +256,18 @@ export function CitiesPage() {
             </Alert>
           ) : null}
 
-          {orderedCities.length === 0 ? (
+          {isLoading ? (
+            <div className="rounded-lg border border-dashed p-8 text-center">
+              <p className="text-sm font-medium text-foreground">Caricamento sedi...</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Lettura da public.cities in corso.
+              </p>
+            </div>
+          ) : orderedCities.length === 0 ? (
             <div className="rounded-lg border border-dashed p-8 text-center">
               <p className="text-sm font-medium text-foreground">Nessuna sede configurata</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Crea la prima sede per alimentare i prossimi step del wiring candidature.
+                Crea la prima sede in public.cities per alimentare candidature e sidebar.
               </p>
             </div>
           ) : (
@@ -259,7 +297,8 @@ export function CitiesPage() {
                         <div className="flex items-center gap-2">
                           <Switch
                             checked={city.isActive}
-                            onCheckedChange={(checked) => handleToggleActive(city, checked)}
+                            onCheckedChange={(checked) => void handleToggleActive(city, checked)}
+                            disabled={isMutating}
                             aria-label={`Attiva o disattiva la sede ${city.displayName}`}
                           />
                           <Badge variant={city.isActive ? "secondary" : "outline"}>
@@ -273,8 +312,8 @@ export function CitiesPage() {
                             type="button"
                             size="icon"
                             variant="ghost"
-                            onClick={() => handleMove(city, "up")}
-                            disabled={!canMoveUp}
+                            onClick={() => void handleMove(city, "up")}
+                            disabled={isMutating || !canMoveUp}
                             aria-label={`Sposta in alto ${city.displayName}`}
                           >
                             <ArrowUp className="size-4" />
@@ -283,8 +322,8 @@ export function CitiesPage() {
                             type="button"
                             size="icon"
                             variant="ghost"
-                            onClick={() => handleMove(city, "down")}
-                            disabled={!canMoveDown}
+                            onClick={() => void handleMove(city, "down")}
+                            disabled={isMutating || !canMoveDown}
                             aria-label={`Sposta in basso ${city.displayName}`}
                           >
                             <ArrowDown className="size-4" />
@@ -294,6 +333,7 @@ export function CitiesPage() {
                             size="icon"
                             variant="ghost"
                             onClick={() => openEditDialog(city)}
+                            disabled={isMutating}
                             aria-label={`Modifica ${city.displayName}`}
                           >
                             <Pencil className="size-4" />
@@ -303,7 +343,7 @@ export function CitiesPage() {
                             size="icon"
                             variant="ghost"
                             onClick={() => setDeleteTarget(city)}
-                            disabled={!deleteGate.deleted}
+                            disabled={isMutating || !deleteGate.deleted}
                             aria-label={`Elimina ${city.displayName}`}
                           >
                             <Trash2 className="size-4" />
@@ -367,10 +407,12 @@ export function CitiesPage() {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={closeDialog}>
+              <Button type="button" variant="outline" onClick={closeDialog} disabled={isMutating}>
                 Annulla
               </Button>
-              <Button type="submit">{editingCity ? "Salva modifiche" : "Crea sede"}</Button>
+              <Button type="submit" disabled={isMutating}>
+                {isMutating ? "Salvataggio..." : editingCity ? "Salva modifiche" : "Crea sede"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -386,7 +428,9 @@ export function CitiesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Torna indietro</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void persistForm(true)}>Conferma slug</AlertDialogAction>
+            <AlertDialogAction onClick={() => void persistForm(true)} disabled={isMutating}>
+              Conferma slug
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -397,16 +441,17 @@ export function CitiesPage() {
             <AlertDialogTitle>Eliminare sede?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteTarget
-                ? `Questa azione rimuove ${deleteTarget.displayName} dal localStorage admin.`
-                : "Questa azione rimuove la sede dal localStorage admin."}
+                ? `Questa azione rimuove ${deleteTarget.displayName} da public.cities.`
+                : "Questa azione rimuove la sede da public.cities."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (deleteTarget) handleDelete(deleteTarget)
+                if (deleteTarget) void handleDelete(deleteTarget)
               }}
+              disabled={isMutating}
             >
               Elimina sede
             </AlertDialogAction>

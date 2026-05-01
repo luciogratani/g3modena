@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react"
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion"
 import { fadeInUp, staggerContainer } from "@/lib/animations"
 import { AnimatedSection } from "@/components/animated-section"
@@ -9,7 +9,11 @@ import { formClassNames, isValidEmail } from "@/lib/form-helpers"
 import { cn } from "@/lib/utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { compressProfilePhoto } from "@/lib/image-compression"
-import { applicationOfficeCities } from "@/data/application-office-cities"
+import {
+  applicationOfficeCities,
+  loadApplicationOfficeCities,
+  type ApplicationOfficeCity,
+} from "@/data/application-office-cities"
 import {
   captureCampaignAttributionFromLocation,
   getStoredCampaignAttribution,
@@ -109,23 +113,17 @@ const allowFreeStepNavigation =
   import.meta.env.DEV && import.meta.env.VITE_ALLOW_FREE_STEP_NAVIGATION === "true"
 const preferMultipartSubmission =
   import.meta.env.VITE_CAREER_SUBMIT_FORMAT === "multipart"
-const activeApplicationOfficeCities = [...applicationOfficeCities].sort(
-  (a, b) => a.sortOrder - b.sortOrder
-)
-const activeApplicationOfficeCitySlugs = new Set(
-  activeApplicationOfficeCities.map((city) => city.slug)
-)
-
 function getStepErrors(
   step: number,
-  formData: CareerFormData
+  formData: CareerFormData,
+  validOfficeCitySlugs: Set<string>,
 ): Partial<Record<keyof CareerFormData, string>> {
   const newErrors: Partial<Record<keyof CareerFormData, string>> = {}
 
   if (step === 1) {
     if (!formData.officeCitySlug) {
       newErrors.officeCitySlug = "Seleziona una sede per la candidatura"
-    } else if (!activeApplicationOfficeCitySlugs.has(formData.officeCitySlug)) {
+    } else if (!validOfficeCitySlugs.has(formData.officeCitySlug)) {
       newErrors.officeCitySlug = "La sede selezionata non è valida"
     }
   }
@@ -245,6 +243,10 @@ export function CareersForm() {
   const [availabilityPopoverOpen, setAvailabilityPopoverOpen] = useState(false)
   const [availabilityDate, setAvailabilityDate] = useState<Date>(() => getTodayDate())
   const [submitting, setSubmitting] = useState(false)
+  const [officeCities, setOfficeCities] = useState<ApplicationOfficeCity[]>(() =>
+    [...applicationOfficeCities].sort((a, b) => a.sortOrder - b.sortOrder),
+  )
+  const [officeCitiesLoading, setOfficeCitiesLoading] = useState(true)
   const stepContainerRef = useRef<HTMLDivElement>(null)
   const profilePhotoInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -253,8 +255,13 @@ export function CareersForm() {
   const lastKnownStepRef = useRef(1)
   const hasSubmittedCurrentAttemptRef = useRef(false)
 
+  const activeApplicationOfficeCitySlugs = useMemo(
+    () => new Set(officeCities.map((city) => city.slug)),
+    [officeCities],
+  )
+
   const validateStep = (step: number): boolean => {
-    const newErrors = getStepErrors(step, formData)
+    const newErrors = getStepErrors(step, formData, activeApplicationOfficeCitySlugs)
     setErrors(newErrors)
     const isValid = Object.keys(newErrors).length === 0
     if (!isValid) {
@@ -268,11 +275,11 @@ export function CareersForm() {
 
   const validateAllSteps = (): boolean => {
     const mergedErrors = {
-      ...getStepErrors(1, formData),
-      ...getStepErrors(2, formData),
-      ...getStepErrors(3, formData),
-      ...getStepErrors(4, formData),
-      ...getStepErrors(5, formData),
+      ...getStepErrors(1, formData, activeApplicationOfficeCitySlugs),
+      ...getStepErrors(2, formData, activeApplicationOfficeCitySlugs),
+      ...getStepErrors(3, formData, activeApplicationOfficeCitySlugs),
+      ...getStepErrors(4, formData, activeApplicationOfficeCitySlugs),
+      ...getStepErrors(5, formData, activeApplicationOfficeCitySlugs),
     }
     setErrors(mergedErrors)
     return Object.keys(mergedErrors).length === 0
@@ -400,6 +407,21 @@ export function CareersForm() {
   const radioCardActiveClasses = formClassNames.radioCardActive
 
   useEffect(() => {
+    let active = true
+    loadApplicationOfficeCities()
+      .then((cities) => {
+        if (!active) return
+        setOfficeCities([...cities].sort((a, b) => a.sortOrder - b.sortOrder))
+      })
+      .finally(() => {
+        if (active) setOfficeCitiesLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
     funnelAttemptIdRef.current = getOrCreateCareersFunnelAttemptId()
     lastKnownStepRef.current = currentStep
     hasSubmittedCurrentAttemptRef.current = false
@@ -518,7 +540,7 @@ export function CareersForm() {
                     <p id="career-office-city-label" className="sr-only">
                       Sede di candidatura
                     </p>
-                    {activeApplicationOfficeCities.map((officeCity) => {
+                    {officeCities.map((officeCity) => {
                       const active = formData.officeCitySlug === officeCity.slug
                       return (
                         <button
@@ -546,6 +568,14 @@ export function CareersForm() {
                       )
                     })}
                   </div>
+                  {officeCitiesLoading ? (
+                    <p className="mt-3 text-sm text-muted-foreground">Caricamento sedi disponibili...</p>
+                  ) : null}
+                  {!officeCitiesLoading && officeCities.length === 0 ? (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Nessuna sede attiva disponibile per nuove candidature.
+                    </p>
+                  ) : null}
                   <p
                     className={`${errorClasses} ${
                       errors.officeCitySlug
@@ -1349,7 +1379,6 @@ async function buildCareerJsonPayload(
       : ""
 
   return {
-    // TODO(wiring): backend receiver must persist this explicit office city slug.
     officeCitySlug: formData.officeCitySlug,
     fullName: formData.fullName,
     email: formData.email,
@@ -1383,7 +1412,6 @@ function buildCareerMultipartPayload(
   attribution: CampaignAttribution,
 ): FormData {
   const payload = new FormData()
-  // TODO(wiring): backend receiver must persist this explicit office city slug.
   payload.set("officeCitySlug", formData.officeCitySlug)
   payload.set("fullName", formData.fullName)
   payload.set("email", formData.email)

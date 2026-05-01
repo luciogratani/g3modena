@@ -12,7 +12,7 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
   Sidebar Marketing › Campagne, builder UTM + `cid`, anteprima creativa, metriche/demo, base URL (`VITE_PUBLIC_SITE_ORIGIN`). Nessun DB.
 
 - [x] **A2 — Città / sedi**  
-  Gestione locale in **Config › Sedi**: tipo `OfficeCity` (`id`, `slug`, `displayName`, `isActive`, `sortOrder`). Storage `admin:cities:v1`, evento `admin:cities:updated`, export `listActiveCities()` per Step A3. Eliminate fisiche bloccate per slug legacy `modena` / `sassari`.
+  UI **Config › Sedi** (`OfficeCity`). Storicamente `localStorage` (`admin:cities:v1`); **E4 (2026-05-01):** `public.cities` via Supabase autenticato, evento `admin:cities:updated` mantenuto per sidebar, nessun import automatico dal vecchio storage. Regole eliminazione legacy `modena` / `sassari` + messaggi FK.
 
 - [x] **A3 — Board e sidebar candidati dinamiche**  
   Sidebar **Candidati** e titoli pagina da **`listActiveCities()`** (ordine `sortOrder`); badge “Nuovo” per **slug** (`Record<string, number>`). Stato **`Page`**: `{ kind: static }` \| `{ kind: candidates, citySlug }` \| `{ kind: waiters, citySlug }`. Listener **`admin:cities:updated`** per ricalcolo città + badge. Board/parametri (`CandidatiBoard`, `board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`) su **slug stringa** generica. `getCandidateCityLabel()` da slug arbitrario (title case da `-`). **Camerieri:** stessa lista città attive ma **filtrata** a slug con storage supportato (`modena`, `sassari` — `SUPPORTED_WAITER_CITY_SLUGS` in `App.tsx`) fino ad estensione CRM multi-sede.
@@ -28,7 +28,7 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 ## Fase B — Sito pubblico (`web`)
 
 - [x] **B1 — Step form “Scegli la città” (sede di candidatura)**  
-  Mirror locale **`web/data/application-office-cities.ts`** (`slug`, `displayName`, `sortOrder`), allineamento manuale con admin finché non c’è API `cities`. Nuovo **step 1** in `careers-form.tsx` (“Per quale sede ti candidi?”), **5 step** totali; **`city`** resta **residenza** negli step successivi. Payload JSON + multipart: **`officeCitySlug`**. Focus/accessibilità migliorati tra step.
+  Lista sedi da **`public.cities`** via REST anon (soli `is_active`, ordine `sort_order`); fallback statico **`application-office-cities.ts`** solo se env Supabase assente o fetch fallisce. Step 1 in `careers-form.tsx`, **5 step**; **`city`** = residenza negli step successivi; payload **`officeCitySlug`**.
 
 - [x] **B2 — Propagazione UTM + `cid`**  
   Adapter web `campaign-attribution`: lettura query (`cid`, `utm_*`) da URL, persistenza in `sessionStorage` (`web:campaign-attribution:v1`) e propagazione nel submit candidature JSON/multipart (`cid`, `utmSource`, `utmMedium`, `utmCampaign`, `utmTerm`, `utmContent`) in `careers-form.tsx`.
@@ -67,17 +67,20 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
   Tabelle (`cities`, `candidates`, `staff`, `campaigns`, `cms_sections`, `contact_messages`, `analytics_events`) con indici e vincoli minimi v1 (schema-only, senza seed mock/business).
   2026-05-01: creato set `supabase/migrations/20260501000000`…`20260501000070`.
 
-- [ ] **E2 — RLS**  
-  Matrice anon (sito) vs authenticated (admin) come da concept; rate limit / validazione submit.
+- [x] **E2 — RLS** (2026-05-01)  
+  Abilitazione RLS (`20260501000090`), policy **authenticated** admin (`00100`), policy **anon** superficie pubblica (`00110`), bridge lookup campagne (`00120`), grant/hardening (`00130`). Smoke SQL: `supabase/sql/e2c_rls_smoke_allow_deny.sql`.  
+  **Segue fuori scope DB:** rate limiting / anti-abuso sul submit pubblico → da affrontare con receiver dedicato (**L1**) o Edge.
 
 - [ ] **E3 — Storage**  
-  Media campagne, allegati candidature, policy bucket.
+  Media campagne, allegati candidature, policy bucket.  
+  2026-05-01: completata la parte bloccante per **L1** (`careers-photos`, `careers-cv` privati + read admin autenticato in `20260501000140_e3_storage_careers.sql`); restano media CMS/campagne.
 
 - [ ] **E4 — Adapter admin**  
-  Sostituzione `localStorage` (board, camerieri, città, campagne, messaggi…) con fetch Supabase.
+  Sostituzione `localStorage` (board, camerieri, campagne, …) con fetch Supabase.  
+  2026-05-01: **messaggi** (`contact_messages`) + Edge `contact-submissions`; **sedi** `public.cities` (admin autenticato + web anon + fallback statico; prompt storico [`PROMPT_CHAT_E4_CITIES_SUPABASE.md`](PROMPT_CHAT_E4_CITIES_SUPABASE.md)). Restano **board**, **camerieri**, **campagne**. **Prossima fetta consigliata:** board **`candidates`** / **`L5`** — [`PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md`](PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md).
 
-- [ ] **E5 — Pagina Auth + guard**  
-  Login Supabase Auth, UI allineata al gestionale, protezione route admin.
+- [x] **E5 — Pagina Auth + guard** (2026-05-01)  
+  Login Supabase Auth funzionante; env Vite (`admin/.env` / `.env.local`, non `.env.example`). Route protette nel gestionale.
 
 ---
 
@@ -87,17 +90,17 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 ### Bloccanti tipici prima di produzione «vera»
 
-- [ ] **L1 — Receiver candidature (`VITE_CAREER_ENDPOINT`)**  
-  Backend/receiver legge e **persiste** dal payload web **`officeCitySlug`** e campi **attribution** (`cid`, `utmSource`, `utmMedium`, `utmCampaign`, `utmTerm`, `utmContent`). Senza questo i dati inviati dal sito sono incompleti per recruiting e campagne (vedi TODO in `careers-form` builders e DEVELOPMENT_NOTES § Web careers).
+- [x] **L1 — Receiver candidature (`VITE_CAREER_ENDPOINT`)** (2026-05-01)  
+  Supabase Edge Function `career-submissions` con service role: riceve JSON o multipart dal form web, valida server-side, risolve `officeCitySlug` su `cities.is_active`, carica foto/CV nei bucket privati `careers-photos` / `careers-cv`, risolve `campaign_id` da `cid` tramite bridge RPC e inserisce `candidates` con attribution UTM e guardrail equivalenti alla policy anon (`pipeline_stage = 'nuovo'`, discard null, privacy true). Deploy/env documentati in `supabase/README.md`; `web/.env.example` punta al formato function URL + `VITE_CAREER_SUBMIT_FORMAT=multipart`.
 
-- [ ] **L2 — Form contatti (`VITE_CONTACT_ENDPOINT`) + inbox admin**  
-  Endpoint che riceve il submit **operativo** (nessun errore silenzioso lato utente). Se più operatori o più macchine: **persistenza condivisa** messaggi (`contact_messages` / equivalente) e gestione stato in admin — altrimenti i messaggi restano solo nel localStorage della singola postazione (DEVELOPMENT_NOTES: «Contatti > Messaggi backend wiring»).
+- [x] **L2 — Form contatti (`VITE_CONTACT_ENDPOINT`) + inbox admin** (2026-05-01)  
+  Edge Function `contact-submissions`: `POST` JSON da `web/components/contact-form.tsx`, validazione server-side, `source` / `status` forzati (`web_contact_form`, `nuovo`), insert `public.contact_messages`. Inbox **`admin/src/components/contact-messages/*`**: lettura condivisa Supabase, UPDATE stato, loading/error, badge sidebar. Deploy/env: **`CONTACT_ALLOWED_ORIGINS`**, **`SUPABASE_SERVICE_ROLE_KEY`**, deploy function; `VITE_CONTACT_ENDPOINT` → URL function (`supabase/README.md`). Prompt storico: [`PROMPT_CHAT_L2_CONTACT_RECEIVER.md`](PROMPT_CHAT_L2_CONTACT_RECEIVER.md).
 
 - [ ] **L3 — Strategia contenuti sito pubblico**  
   Una delle due: deploy **statico** da contenuti già consolidati nell’artifact di build **oppure** lettura CMS da DB **production-safe** (schema/RLS/fallback) — DEVELOPMENT_NOTES: «CMS wiring production-safe» + «Web runtime da DB».
 
-- [ ] **L4 — Sicurezza gestionale**  
-  Auth + guard sulle route admin **prima** di pubblicare URL del gestionale — DEVELOPMENT_NOTES: «Auth/protezione admin» (allinea a **E5** quando il backend è pronto).
+- [x] **L4 — Sicurezza gestionale** (2026-05-01)  
+  Auth + guard sulle route admin operative insieme a **E5**; resta da confermare hardening deploy (HTTPS-only cookies, URL gestionale non indicizzato, ecc.) in checklist pre-prod.
 
 - [ ] **L5 — Persistenza pipeline candidati condivisa** *(bloccante solo se il go-live richiede team multi-dispositivo)*  
   Board e stato candidati non possono restare solo in `localStorage` del browser — DEVELOPMENT_NOTES: «Board persistence server-side». Per demo single-browser può restare differito insieme a **E4**.
@@ -114,4 +117,4 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist: milestone **A4** colonna *Scartati* (2026-05-01, schema + UI + cleanup metadata), milestone **D1 + E1** (2026-05-01, SQL schema-only in `supabase/migrations`), milestone **C4** ingest analytics (2026-05-01), gate **L1–L5** e milestone **C2** (2026-04-30). Prossimo focus tecnico consigliato: **E2** (RLS), quindi gate **L1/L2/L4**.
+Ultimo aggiornamento checklist (2026-05-01): **E4** avanzato con **`cities`** (admin Supabase + careers anon); prima **messaggi**, **L1**, **L2**, **E2**, **E5**, **L4**. **Prossimo focus tecnico consigliato:** board **`candidates`** (**`L5`** / **`E4`**) — prompt [`PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md`](PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md); poi **campagne**, **camerieri**, gate **L3**, residuo **E3**, **A5**.

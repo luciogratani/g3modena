@@ -17,15 +17,14 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 
 ## Web pubblico — Form candidature (`careers`)
 
-- [x] Step dedicato **sede di candidatura** (step 1 di 5): scelta solo tra sedi del mirror **`web/data/application-office-cities.ts`** (seed `modena`, `sassari`; aggiornare manualmente quando cambiano sedi attive in admin).
+- [x] Step dedicato **sede di candidatura** (step 1 di 5): scelta da **`public.cities`** via REST anon (`is_active = true`, ordinamento `sort_order`); fallback statico `modena`/`sassari` solo se env/fetch Supabase non disponibili.
 - [x] Campo **`officeCitySlug`** nel payload (**JSON** e **multipart**) da `buildCareerJsonPayload` / `buildCareerMultipartPayload`; **`city`** = residenza/domicilio (step anagrafici).
 - [x] **B2 UTM + `cid`**: query string (`cid`, `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`) catturata da `web/lib/campaign-attribution.ts`, persistita in `sessionStorage` (`web:campaign-attribution:v1`) e propagata al submit candidature.
 - [x] **C1 analytics locale (pre-Supabase)**: `web/lib/analytics.ts` — session id `web:analytics:session-id:v1`, funnel attempt careers `web:analytics:careers:funnel-attempt-id:v1`, buffer `web:analytics:buffer:v1`, union eventi come da [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md); ogni record porta UTM + **`cid`** dall’attribution; `page_view` in `App.tsx` dopo capture attribution; sul form: `careers_form_open`, `careers_step_view`, `careers_submit` (post-successo, `citySlug` da `officeCitySlug`).
 - [x] **C2 inventario `cta_key`**: modulo condiviso `web/lib/analytics-cta-keys.ts` con union `CtaKey` allineata al concept (`nav_logo_home` ... `footer_mail_mediterraneo`), helper `trackCtaClick(ctaKey)` in `web/lib/analytics.ts` e wiring `cta_click` in `web/components/navbar.tsx`, `web/components/hero.tsx`, `web/components/footer.tsx` (esclusi submit contatti e pulsanti wizard careers).
 - [x] **C3 `careers_abandon`**: listener best-effort `visibilitychange` (`hidden`) + `pagehide` in `careers-form.tsx`, con dedup max 1 evento per attempt via chiavi sessione `web:analytics:careers:abandon-sent:v1:{attemptId}` e guard submit `web:analytics:careers:submit-sent:v1:{attemptId}`.
 - [x] **C4 ingest adapter (pre-Supabase)**: `web/lib/analytics-ingest.ts` avvia flush automatico solo se presente `VITE_ANALYTICS_INGEST_URL`; il buffer locale `web:analytics:buffer:v1` resta sempre source of truth (append offline-first), poi invio batch JSON in snake_case (`events[]`) con retry silenzioso su errore. Trigger flush: debounce/idle su nuovi eventi, intervallo leggero (15s), lifecycle `visibilitychange` (`hidden`) e `pagehide`; su `200 OK` rimozione dal buffer dei soli eventi accettati (se `accepted_event_ids` o `accepted_count`, altrimenti batch intero). In dev disponibile mock locale (`pnpm --filter web dev:analytics-mock`, endpoint `http://localhost:8788/ingest`) per test end-to-end senza Supabase. Contratto request/response: [`ANALYTICS_INGEST_CONTRACT.md`](ANALYTICS_INGEST_CONTRACT.md).
-- [ ] Receiver HTTP (`VITE_CAREER_ENDPOINT`): leggere e persistere **`officeCitySlug`**; validare slug contro elenco sedi attive quando esisterà sorgente canonica (vedi TODO nei builder).
-- [ ] Receiver HTTP (`VITE_CAREER_ENDPOINT`): leggere e persistere anche i nuovi campi attribution (`cid`, `utmSource`, `utmMedium`, `utmCampaign`, `utmTerm`, `utmContent`) oltre a `officeCitySlug`.
+- [x] Receiver **`VITE_CAREER_ENDPOINT`** (gate **L1**, 2026-05-01): Edge Function `supabase/functions/career-submissions/index.ts` — persistenza **`officeCitySlug`** tramite lookup **`public.cities`** (`is_active`), attribution **UTM + `cid`** + **`campaign_id`** da RPC `resolve_campaign_id_from_cid`; bucket privati **`careers-photos`** / **`careers-cv`** (`20260501000140_e3_storage_careers.sql`). Deploy/env/smoke: `supabase/README.md`; formato env web: `web/.env.example` (`VITE_CAREER_SUBMIT_FORMAT=multipart`).
 
 ---
 
@@ -63,22 +62,19 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 - [x] Web Editor lazy-loaded con fallback uniforme (`PageLoadingFallback`).
 - [x] SEO page reale in admin con salvataggio manuale e validazioni base.
 - [x] Contratto condiviso `@g3/content-contract` adottato tra admin e web.
-- [x] `Contatti > Messaggi` presente come MVP locale persistente (localStorage + badge sincronizzati via custom event).
+- [x] `Contatti > Messaggi`: inbox su **`contact_messages`** (Supabase autenticato), submit web via Edge **`contact-submissions`** (`VITE_CONTACT_ENDPOINT`); loading/error e badge sidebar; gate **L2** (2026-05-01).
 
 ### Diagnostica Supabase
 - [x] Card `Monitor Supabase` in `Impostazioni` con check mount + retry.
 - [x] Stati e telemetria base (`Online/Offline/Config mancante/In corso`, latenza, ultimo controllo).
 
-### Sedi / cities (MVP locale, pre-DB)
+### Sedi / cities (Supabase, E4)
 - [x] Pagina **Config › Sedi** (`CitiesPage`) integrata in `admin/src/App.tsx`.
 - [x] Modello `OfficeCity` (`City` alias): `id`, `slug`, `displayName`, `isActive`, `sortOrder` — `admin/src/components/cities/types.ts`.
-- [x] Storage versionato `admin/src/components/cities/storage.ts`:
-  - chiave **`admin:cities:v1`** (`CITIES_STORAGE_KEY`);
-  - evento UI **`admin:cities:updated`** (`CITIES_UPDATED_EVENT`);
-  - seed iniziale **modena**, **sassari**; parser/sanitizer difensivo + fallback se JSON corrotto.
-- [x] API storage esposta: `loadCities`, **`listActiveCities()`** (consumata in **`App.tsx`** per sidebar Candidati/Camerieri e badge), CRUD + `moveCity`, `deleteCity`, helper `isCityDeleteLocked` / `canDeleteCity`.
-- [x] UX: slug univoca; conferma su cambio slug in modifica; attiva/disattiva; ordinamento su/giù; empty state ed errori accessibili.
-- **Limite attuale:** eliminazione **non consentita** per sedi legacy con slug `modena` e `sassari` (insieme `LEGACY_LOCKED_SLUGS` nello storage).
+- [x] Adapter `admin/src/components/cities/storage.ts` su **`public.cities`** via client Supabase autenticato: mapping DB (`display_name`, `is_active`, `sort_order`) ↔ UI (`displayName`, `isActive`, `sortOrder`), CRUD, `moveCity`, `deleteCity`, helper `isCityDeleteLocked` / `canDeleteCity`.
+- [x] Evento UI **`admin:cities:updated`** mantenuto per aggiornare sidebar/badge dopo mutazioni; il vecchio `admin:cities:v1` non viene importato automaticamente. DB vuoto = nessuna sede finché non viene creato/seedato.
+- [x] UX: slug univoca via vincolo DB; conferma su cambio slug in modifica; attiva/disattiva; ordinamento su/giù; loading/empty/error state.
+- **Limite attuale:** eliminazione **non consentita** in UI per sedi legacy con slug `modena` e `sassari`; per altre sedi eventuali FK DB restituiscono messaggio “disattivala invece di eliminarla”.
 
 ### Sidebar Candidati / Camerieri (dinamica da cities, Step A3)
 
@@ -184,10 +180,10 @@ Integrazioni cross-modulo:
 ## TODO pre-lancio effettivo (priorita)
 
 - [ ] **Board persistence server-side**: migrare da localStorage a persistenza DB condivisa.
-- [ ] **Contatti > Messaggi backend wiring**: sorgente dati reale + persistenza stato (`nuovo/letto/archiviato`) + error handling.
+- [x] **Contatti > Messaggi backend wiring**: Edge `contact-submissions` + inbox admin Supabase (`contact_messages`), stato `nuovo/letto/archiviato` persistito.
 - [ ] **CMS wiring production-safe**: verifica schema, RLS/policy, tenant separation, fallback robusto.
 - [ ] **Web runtime da DB**: lettura reale contenuti da Supabase con fallback/feature-flag.
-- [ ] **Auth/protezione admin**: login + guard route + policy minime.
+- [x] **Auth/protezione admin**: login Supabase + guard route (**E5**/ **L4**, 2026-05-01); hardening deploy pre-prod da confermare.
 
 ---
 
@@ -211,9 +207,9 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 | Filtri colonna `Nuovo` | `admin:candidates:new-column-filters:state:v1:{modena|sassari}` | Restano preferenze locali salvo richiesta sync |
 | Visibilità filtri `Nuovo` | `admin:candidates:new-column-filters:visibility:v1:{modena|sassari}` | Restano preferenze locali |
 | Recap giornaliero | `admin:candidates:daily-recap:dismissed-on` | Preferenza locale, non DB v1 |
-| Messaggi contatti | `admin:contact-messages:v1` + evento `admin:contacts:messages-updated` | `contact_messages` |
+| Messaggi contatti | ~~`admin:contact-messages:v1`~~ (legacy); lista ora da **`contact_messages`** | `contact_messages` (L2 ✓) |
 | Camerieri CRM | `admin:camerieri:crm:v1` + evento `admin:camerieri:updated` | `staff` |
-| Sedi | `admin:cities:v1` + evento `admin:cities:updated` | `cities` |
+| Sedi | ~~`admin:cities:v1`~~ (legacy); dati da **`public.cities`**; evento **`admin:cities:updated`** solo segnale UI post-mutazione | `cities` (E4 ✓) |
 | Board update | evento `admin:candidates:board-updated` | Sostituire con invalidazione/query refresh adapter |
 | Tema admin | `admin-theme-preference` (`admin-theme` legacy) | Resta localStorage |
 
@@ -241,7 +237,7 @@ Stato 2026-05-01: completati **audit ERD (D1)** e **migrazioni SQL v1 (E1)** in 
   - `cms_sections`: unique composito tenant+sezione (`NULLS NOT DISTINCT`, Postgres 15+);
   - `contact_messages`: `updated_at` + workflow `nuovo|letto|archiviato`;
   - `candidates` (A4 / migrazione `0080`): `pipeline_stage` esteso con `scartati`; nuove colonne `discard_reason_key|note|discarded_at|return_status` con CHECK whitelistati e indice parziale `candidates_discard_reason_idx where discard_reason_key is not null`.
-- **Perimetro residuo:** E2 (RLS), E3 (Storage bucket/policy), E4 (adapter admin/web da localStorage a Supabase), E5 (Auth/guard).
+- **Perimetro residuo:** E3 (Storage CMS/campagne oltre careers); E4 residuo (**board**, **camerieri**, **campagne** — sedi e messaggi già migrati); L3/L5 come da roadmap.
 
 Riferimenti: `supabase/README.md`, `docs/CAMPAIGNS_CONTRACT.md`, `docs/ANALYTICS_INGEST_CONTRACT.md`, `docs/DB_CMS_INTEGRATION.md`.
 
