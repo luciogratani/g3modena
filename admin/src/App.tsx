@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react"
 import {
   Settings,
   FileEdit,
@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { PageLoadingFallback } from "./components/PageLoadingFallback"
+import { AdminLoginPage } from "./components/auth/AdminLoginPage"
 import { GestionaleContatti } from "./components/GestionaleContatti"
 import {
   CONTACT_MESSAGES_UPDATED_EVENT,
@@ -53,6 +54,8 @@ import {
   resolveThemeMode,
   type ThemePreference,
 } from "./lib/theme-preference"
+import { hasSupabaseConfig, supabase } from "./lib/supabase"
+import type { Session } from "@supabase/supabase-js"
 
 type StaticPage = "dashboard" | "campaigns" | "cms" | "seo" | "contactForm" | "cities" | "settings"
 type Page =
@@ -106,6 +109,10 @@ function getPageTitle(page: Page): string {
 }
 
 export default function App() {
+  const [authStatus, setAuthStatus] = useState<
+    "loading" | "authenticated" | "unauthenticated" | "misconfigured"
+  >(hasSupabaseConfig ? "loading" : "misconfigured")
+  const [authSession, setAuthSession] = useState<Session | null>(null)
   const [page, setPage] = useState<Page>({ kind: "static", value: "dashboard" })
   const [themePreference, setThemePreference] = useState<ThemePreference>(getInitialThemePreference)
   const [activeCities, setActiveCities] = useState(() => listActiveCities())
@@ -118,6 +125,41 @@ export default function App() {
     () => activeCities.filter((city) => SUPPORTED_WAITER_CITY_SLUGS.has(city.slug)),
     [activeCities],
   )
+  const authenticatedUserEmail = authSession?.user.email ?? null
+
+  const refreshAuthSession = useCallback(async () => {
+    if (!hasSupabaseConfig || !supabase) {
+      setAuthSession(null)
+      setAuthStatus("misconfigured")
+      return
+    }
+    setAuthStatus("loading")
+    const { data, error } = await supabase.auth.getSession()
+    if (error) {
+      setAuthSession(null)
+      setAuthStatus("unauthenticated")
+      return
+    }
+    setAuthSession(data.session)
+    setAuthStatus(data.session ? "authenticated" : "unauthenticated")
+  }, [])
+
+  const handleLogout = useCallback(async () => {
+    if (!supabase) return
+    await supabase.auth.signOut()
+  }, [])
+
+  useEffect(() => {
+    void refreshAuthSession()
+    if (!supabase) return
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthSession(session)
+      setAuthStatus(session ? "authenticated" : "unauthenticated")
+    })
+    return () => {
+      subscription.subscription.unsubscribe()
+    }
+  }, [refreshAuthSession])
 
   useEffect(() => {
     localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, themePreference)
@@ -213,11 +255,30 @@ export default function App() {
           <SettingsPage
             themePreference={themePreference}
             onThemePreferenceChange={setThemePreference}
+            currentUserEmail={authenticatedUserEmail}
+            onLogout={handleLogout}
           />
         )
       case "cities":
         return <CitiesPage />
     }
+  }
+
+  if (authStatus === "loading") {
+    return (
+      <PageLoadingFallback
+        title="Autenticazione admin"
+        description="Verifica sessione in corso..."
+      />
+    )
+  }
+
+  if (authStatus === "misconfigured") {
+    return <AdminLoginPage mode="misconfigured" />
+  }
+
+  if (authStatus === "unauthenticated") {
+    return <AdminLoginPage mode="login" />
   }
 
   return (
@@ -474,8 +535,13 @@ export default function App() {
             <span className="text-sm font-medium text-muted-foreground">
               {getPageTitle(page)}
             </span>
+            {authenticatedUserEmail ? (
+              <span className="ml-auto max-w-56 truncate text-xs text-muted-foreground">
+                {authenticatedUserEmail}
+              </span>
+            ) : null}
             <TooltipProvider>
-              <div className="ml-auto flex items-center gap-1">
+              <div className="flex items-center gap-1">
                 <Popover>
                   <Tooltip>
                     <TooltipTrigger asChild>

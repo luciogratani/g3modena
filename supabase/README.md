@@ -1,4 +1,4 @@
-# Supabase — schema v1 (D1 + E1)
+# Supabase — schema v1 (D1 + E1 + E2b)
 
 Migrazioni SQL versionate per il progetto Supabase di **G3 Modena**.
 
@@ -8,7 +8,7 @@ Migrazioni SQL versionate per il progetto Supabase di **G3 Modena**.
 > import puntuale fuori dal repo.
 
 Riferimenti:
-- [`docs/IMPLEMENTATION_ROADMAP.md`](../docs/IMPLEMENTATION_ROADMAP.md) — fasi D1/E1.
+- [`docs/IMPLEMENTATION_ROADMAP.md`](../docs/IMPLEMENTATION_ROADMAP.md) — fasi D1/E1/E2.
 - [`docs/PRE_WIRING_CONCEPT.md`](../docs/PRE_WIRING_CONCEPT.md) — ERD concettuale v1.
 - [`docs/CAMPAIGNS_CONTRACT.md`](../docs/CAMPAIGNS_CONTRACT.md) — contratto `campaigns`.
 - [`docs/ANALYTICS_INGEST_CONTRACT.md`](../docs/ANALYTICS_INGEST_CONTRACT.md) — contratto `analytics_events`.
@@ -26,7 +26,13 @@ supabase/
     ├── 20260501000040_create_staff.sql                  ex Camerieri (FK city + opt source_candidate)
     ├── 20260501000050_create_cms_sections.sql           contenuti CMS + seo
     ├── 20260501000060_create_contact_messages.sql       inbox /contact
-    └── 20260501000070_create_analytics_events.sql       eventi append-only
+    ├── 20260501000070_create_analytics_events.sql       eventi append-only
+    ├── 20260501000080_alter_candidates_discard.sql      A4: stato scartati + discard_*
+    ├── 20260501000090_e2b_enable_rls.sql                enable/force RLS
+    ├── 20260501000100_e2b_policies_authenticated_admin.sql
+    ├── 20260501000110_e2b_policies_anon_public.sql
+    ├── 20260501000120_e2b_campaign_lookup_bridge.sql    RPC cid -> campaign_id
+    └── 20260501000130_e2b_hardening_grants_and_policy_smoke.sql
 ```
 
 L'ordine numerico riflette l'ordine consigliato in
@@ -42,16 +48,29 @@ Le migrazioni sono compatibili con **Supabase CLI**. Dopo il primo
 supabase db push
 ```
 
-Per ambienti dev locali con Docker:
+Per workflow remoto (senza Docker locale), usare:
 
 ```bash
-supabase start
-supabase migration up
+supabase login
+supabase link --project-ref <project-ref>
+supabase db push
 ```
 
 > Nota: il file `supabase/config.toml` non è committato qui per evitare di
 > fissare un `project_id` specifico. Dopo `supabase link --project-ref <ref>`
 > il file viene rigenerato in locale.
+
+### Verifica migrazioni E2b su progetto remoto pulito
+
+Check consigliati (manuali, post-`db push`):
+
+1. verificare ordine migration applicato (`20260501000000` → `20260501000130`);
+2. eseguire smoke allow/deny dal file:
+   - `supabase/sql/e2c_rls_smoke_allow_deny.sql`
+3. verificare presenza policy da `pg_policies` per tutte le tabelle target;
+4. verificare che `resolve_campaign_id_from_cid(text)` sia `EXECUTE` per `anon`.
+
+Se non vuoi usare CLI, lo stesso smoke pack è incollabile nel SQL Editor Supabase.
 
 ## Convenzioni schema
 
@@ -71,11 +90,6 @@ supabase migration up
 - **Seed di business**: nessuna città, campagna, candidato, messaggio o
   evento analytics. Anche `cities` (Modena/Sassari) resta vuota: il seed
   reale arriva via admin in E4 o via INSERT del cliente.
-- **RLS / policy**: rinviato a **E2** (`docs/IMPLEMENTATION_ROADMAP.md`).
-  Le tabelle hanno commenti che indicano i flussi attesi (anon vs
-  authenticated). All'apply iniziale Supabase espone queste tabelle
-  *senza* policy: prima di esporre la chiave anon a internet, abilitare
-  RLS in E2.
 - **Storage**: bucket (`site-media`, `campaign-previews`, `careers-photos`,
   `careers-cv`) e relative policy sono ambito **E3**. Le tabelle qui
   prevedono solo path testuali (`creative_image_path`, `profile_photo_path`,
@@ -116,9 +130,62 @@ allineate qui (fonte autoritativa: i contratti dedicati):
 
 ## Prossimi step (E2 → E5)
 
-1. **E2 — RLS**: matrice anon (sito) vs authenticated (admin), rate limit
-   submit pubblici (candidates / analytics_events / contact_messages).
+1. **E2 completato (E2b baseline)**: RLS + policy + grants minimi implementati
+   in `20260501000090`…`20260501000130`.
 2. **E3 — Storage**: bucket dedicati e policy.
 3. **E4 — Adapter admin**: sostituzione `localStorage` con fetch Supabase
    (cities, board candidati, contact messages, staff, campaigns).
 4. **E5 — Auth + guard route**.
+
+## RLS matrix v1 (E2b)
+
+| Tabella | anon | authenticated |
+|---------|------|---------------|
+| `cities` | `SELECT` solo `is_active = true` | full CRUD |
+| `campaigns` | nessun accesso diretto | full CRUD |
+| `candidates` | `INSERT` only (guardrail submit pubblico) | full CRUD |
+| `staff` | nessun accesso | full CRUD |
+| `cms_sections` | `SELECT` solo `is_published = true` (+ tenant match se claim) | full CRUD |
+| `contact_messages` | `INSERT` only (`source='web_contact_form'`, `status='nuovo'`) | full CRUD |
+| `analytics_events` | `INSERT` only append-only | full CRUD |
+
+Note hardening:
+- `campaigns` non è leggibile da `anon`; il lookup pubblico passa da
+  `public.resolve_campaign_id_from_cid(text)` (security definer).
+- Per `anon` sono stati aggiunti `GRANT` minimi (tabella + sequence identity
+  `analytics_events_id_seq`).
+- `FORCE RLS` attivo su `campaigns`, `candidates`, `staff`,
+  `contact_messages`, `analytics_events`.
+
+## Auth admin required (E5 baseline)
+
+Con RLS E2b attiva, il backoffice legge/scrive dati operativi solo in sessione
+Supabase Auth valida (`role = authenticated`).
+
+Comportamento app admin:
+
+1. se sessione assente: mostra schermata login;
+2. dopo login (`signInWithPassword`): route admin accessibili con policy `authenticated`;
+3. logout (`signOut`): ritorno immediato alla schermata login;
+4. config mancante (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`): schermata misconfigured.
+
+## Cosa resta anon-only sul web
+
+Ruolo `anon` (pubblico) mantiene solo la superficie minima:
+
+- `SELECT` su `cities` (`is_active = true`);
+- `SELECT` su `cms_sections` pubblicate (con tenant match se claim presente);
+- `INSERT` su `candidates` (submit careers) con guardrail policy;
+- `INSERT` su `contact_messages` (submit contatti) con `source/status` vincolati;
+- `INSERT` su `analytics_events` append-only;
+- nessun `SELECT` diretto su `campaigns` (solo bridge RPC `resolve_campaign_id_from_cid`).
+
+## Boundary anti-spam (design-level)
+
+RLS riduce la superficie ma **non sostituisce** rate-limit/validazione.
+Per i receiver pubblici (`careers`, `contact`, `analytics ingest`) mantenere:
+
+1. endpoint Edge/API con throttle IP + fingerprint sessione;
+2. validazione payload applicativa prima dell'insert;
+3. dedup eventi via `client_event_id` (già supportato da unique partial index);
+4. CAPTCHA/challenge dove necessario (soprattutto form contatti/candidature).

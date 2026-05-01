@@ -12,6 +12,8 @@ import { hasSupabaseConfig, supabase, supabaseUrl } from "../lib/supabase"
 type SettingsPageProps = {
   themePreference: ThemePreference
   onThemePreferenceChange: (preference: ThemePreference) => void
+  currentUserEmail: string | null
+  onLogout: () => Promise<void>
 }
 
 type SupabaseStatus = "checking" | "online" | "offline" | "misconfigured"
@@ -40,8 +42,11 @@ const STATUS_LABEL: Record<SupabaseStatus, string> = {
 export function SettingsPage({
   themePreference,
   onThemePreferenceChange,
+  currentUserEmail,
+  onLogout,
 }: SettingsPageProps) {
-  const [logoutClicked, setLogoutClicked] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [monitorState, setMonitorState] = useState<SupabaseMonitorState>({
     status: hasSupabaseConfig ? "checking" : "misconfigured",
     latencyMs: null,
@@ -111,6 +116,18 @@ export function SettingsPage({
   useEffect(() => {
     void runSupabaseCheck()
   }, [runSupabaseCheck])
+
+  async function handleLogoutClick() {
+    setLogoutError(null)
+    setIsLoggingOut(true)
+    try {
+      await onLogout()
+    } catch (error) {
+      setLogoutError(error instanceof Error ? error.message : "Logout non riuscito.")
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   return (
     <div className="min-h-full bg-background p-6">
@@ -236,24 +253,27 @@ export function SettingsPage({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">
+              Utente corrente:{" "}
+              <span className="font-medium text-foreground">
+                {currentUserEmail ?? "non disponibile"}
+              </span>
+            </p>
             <Button
               type="button"
               variant="outline"
               className="w-full justify-center sm:w-auto"
               aria-label="Esegui logout"
-              onClick={() => {
-                setLogoutClicked(true)
-              }}
+              onClick={() => void handleLogoutClick()}
+              disabled={isLoggingOut}
             >
               <LogOut data-icon="inline-start" />
-              Logout
+              {isLoggingOut ? "Logout in corso..." : "Logout"}
             </Button>
-            {logoutClicked ? (
-              <Alert>
-                <AlertTitle>Logout in preparazione</AlertTitle>
-                <AlertDescription>
-                  La procedura completa di uscita sara disponibile nel prossimo aggiornamento.
-                </AlertDescription>
+            {logoutError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Logout non riuscito</AlertTitle>
+                <AlertDescription>{logoutError}</AlertDescription>
               </Alert>
             ) : null}
           </CardContent>
