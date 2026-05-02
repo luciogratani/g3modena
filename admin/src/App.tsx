@@ -40,6 +40,7 @@ import {
 import { Dashboard } from "./components/Dashboard"
 import { CandidatiBoard } from "./components/CandidatiBoard"
 import { CamerieriPage } from "./components/camerieri/CamerieriPage"
+import { migrateLocalCamerieriToStaffOnce } from "./components/camerieri/migrate-local-camerieri-to-staff"
 import { CampagnePage } from "./components/campagne/CampagnePage"
 import { CitiesPage } from "./components/cities/CitiesPage"
 import { CITIES_UPDATED_EVENT, listActiveCities } from "./components/cities/storage"
@@ -47,7 +48,6 @@ import type { OfficeCity } from "./components/cities/types"
 import { SettingsPage } from "./components/SettingsPage"
 import { SeoSettingsPage } from "./components/SeoSettingsPage"
 import { countNewCandidatesByCity } from "./components/candidati-board/candidates-repository"
-import type { CandidateCity } from "./data/mockCandidates"
 import {
   applyResolvedThemeMode,
   getInitialThemePreference,
@@ -73,8 +73,6 @@ const STATIC_PAGE_TITLES: Record<StaticPage, string> = {
   cities: "Config › Sedi",
   settings: "Config › Impostazioni",
 }
-
-const SUPPORTED_WAITER_CITY_SLUGS = new Set(["modena", "sassari"])
 
 const CmsWebEditor = lazy(() =>
   import("./components/CmsWebEditor").then((module) => ({ default: module.CmsWebEditor })),
@@ -106,10 +104,6 @@ export default function App() {
   const activeCitySlugs = useMemo(() => activeCities.map((city) => city.slug), [activeCities])
   const [newCandidatesByCity, setNewCandidatesByCity] = useState<Record<string, number>>({})
   const [newContactMessagesCount, setNewContactMessagesCount] = useState(getNewContactMessagesCount)
-  const waiterCities = useMemo(
-    () => activeCities.filter((city) => SUPPORTED_WAITER_CITY_SLUGS.has(city.slug)),
-    [activeCities],
-  )
   const authenticatedUserEmail = authSession?.user.email ?? null
 
   const refreshAuthSession = useCallback(async () => {
@@ -188,20 +182,22 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (page.kind === "candidates") {
+    if (authStatus !== "authenticated") return
+    if (!hasSupabaseConfig) return
+    void migrateLocalCamerieriToStaffOnce().then((outcome) => {
+      if (outcome.status !== "failed") return
+      console.warn("[camerieri] Migrazione locale → staff incompleta:", outcome.error)
+    })
+  }, [authStatus])
+
+  useEffect(() => {
+    if (page.kind === "candidates" || page.kind === "waiters") {
       const stillActive = activeCitySlugs.includes(page.citySlug)
       if (!stillActive) {
         setPage({ kind: "static", value: "dashboard" })
       }
-      return
     }
-    if (page.kind === "waiters") {
-      const stillAvailable = waiterCities.some((city) => city.slug === page.citySlug)
-      if (!stillAvailable) {
-        setPage({ kind: "static", value: "dashboard" })
-      }
-    }
-  }, [page, activeCitySlugs, waiterCities])
+  }, [page, activeCitySlugs])
 
   useEffect(() => {
     function refreshContactMessagesCount() {
@@ -224,10 +220,10 @@ export default function App() {
       return <CandidatiBoard boardCity={page.citySlug} />
     }
     if (page.kind === "waiters") {
-      if (!SUPPORTED_WAITER_CITY_SLUGS.has(page.citySlug)) {
+      if (!activeCitySlugs.includes(page.citySlug)) {
         return null
       }
-      return <CamerieriPage city={page.citySlug as CandidateCity} />
+      return <CamerieriPage city={page.citySlug} />
     }
 
     switch (page.value) {
@@ -437,18 +433,21 @@ export default function App() {
                 <CollapsibleContent>
                   <SidebarGroupContent>
                     <SidebarMenu>
-                      {waiterCities.map((city) => (
-                        <SidebarMenuItem key={`waiter-city-${city.id}`}>
-                          <SidebarMenuButton
-                            isActive={page.kind === "waiters" && page.citySlug === city.slug}
-                            tooltip={`Camerieri ${city.displayName}`}
-                            onClick={() => setPage({ kind: "waiters", citySlug: city.slug })}
-                          >
-                            <Users />
-                            <span>{city.displayName}</span>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
+                      {activeCities.map((city) => {
+                        const label = city.displayName || toLabelFromSlug(city.slug)
+                        return (
+                          <SidebarMenuItem key={`waiter-city-${city.id}`}>
+                            <SidebarMenuButton
+                              isActive={page.kind === "waiters" && page.citySlug === city.slug}
+                              tooltip={`Camerieri ${label}`}
+                              onClick={() => setPage({ kind: "waiters", citySlug: city.slug })}
+                            >
+                              <Users />
+                              <span>{label}</span>
+                            </SidebarMenuButton>
+                          </SidebarMenuItem>
+                        )
+                      })}
                     </SidebarMenu>
                   </SidebarGroupContent>
                 </CollapsibleContent>

@@ -1,11 +1,11 @@
-import type { CandidateCity } from "@/src/data/mockCandidates"
+import type { CandidateCitySlug } from "@/src/data/mockCandidates"
 
 export type CameriereTag = "automunito" | "esperienza" | "multilingue" | "fuori_sede"
 
 export type Cameriere = {
   id: string
   sourceCandidateId?: string
-  city: CandidateCity
+  city: CandidateCitySlug
   firstName: string
   lastName: string
   avatarUrl?: string
@@ -18,7 +18,7 @@ export type Cameriere = {
 }
 
 export type CameriereCreateInput = {
-  city: CandidateCity
+  city: CandidateCitySlug
   firstName: string
   lastName: string
   avatarUrl?: string

@@ -1,4 +1,4 @@
-import type { Candidate, CandidateCity } from "@/src/data/mockCandidates"
+import type { Candidate } from "@/src/data/mockCandidates"
 import type { Cameriere, CameriereCreateInput, CameriereTag } from "./types"
 
 export function getCameriereTagsFromCandidate(candidate: Candidate): CameriereTag[] {
@@ -11,12 +11,19 @@ export function getCameriereTagsFromCandidate(candidate: Candidate): CameriereTa
 }
 
 export function createCameriereInputFromCandidate(candidate: Candidate): CameriereCreateInput {
+  const pathFromColumn = candidate.profilePhotoStoragePath?.trim()
+  const img = candidate.profileImage?.trim()
+  const fallbackPath =
+    img && !/^https?:\/\//i.test(img)
+      ? img
+      : undefined
+
   return {
-    city: candidate.candidateCity as CandidateCity,
+    city: candidate.candidateCity,
     sourceCandidateId: candidate.id,
     firstName: candidate.firstName,
     lastName: candidate.lastName,
-    avatarUrl: candidate.profileImage || undefined,
+    avatarUrl: pathFromColumn || fallbackPath || undefined,
     email: candidate.email || undefined,
     phone: candidate.phone || undefined,
     isActive: true,

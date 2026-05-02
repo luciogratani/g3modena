@@ -13,6 +13,8 @@ Concept pre-coding (campagne, analytics, città + form, RLS): [`PRE_WIRING_CONCE
 
 Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md).
 
+**Smoke test manuale admin (repeatable):** [`SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md).
+
 ---
 
 ## Web pubblico — Form candidature (`careers`)
@@ -84,80 +86,37 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 - [x] **Badge “Nuovo”:** `getNewCandidatesByCityCounts(activeCitySlugs)` — mappa `Record<string, number>` per slug presenti nelle sedi attive.
 - [x] **Routing pagina:** tipo somma `Page` = static \| `{ kind: candidates, citySlug }` \| `{ kind: waiters, citySlug }`.
 - [x] **Board:** parametrizzazione per **`citySlug: string`** (`CandidatiBoard`, `useCandidateBoardState`, `useNewColumnFilters`, `board-utils`, `KanbanColumn`). Etichetta città in card: `getCandidateCityLabel()` in `candidate-utils.ts` (slug generico → label leggibile).
-- [x] **Camerieri:** voci sidebar da `activeCities.filter` su **`SUPPORTED_WAITER_CITY_SLUGS`** (`modena`, `sassari`): CRM resta compatibile con bucket storage attuale; nuove sedi **non** compaiono in Camerieri finché lo storage staff non è esteso.
+- [x] **Camerieri:** voci sidebar da **`activeCities`** (`listActiveCities`), come Candidati; etichette `displayName` o fallback slug; redirect dashboard se slug non più tra le sedi attive.
 
-### Camerieri (MVP CRM locale)
+### Camerieri CRM su `public.staff` (E4, 2026-05-02)
 
-Scope attuale:
-- CRM camerieri per citta (`Modena` / `Sassari`), senza timeline disponibilita in admin.
+- [x] **Sorgente dati:** `admin/src/components/camerieri/staff-repository.ts` — `listByCitySlug`, `upsertStaff` (idempotenza `source_candidate_id`), mapping ↔ `Cameriere`, lookup `city_id` via `loadCities()`; foto con bucket `careers-photos` come i candidati.
+- [x] **UI lettura:** `useCamerieri` (loading/error/reload), evento **`admin:camerieri-staff:list-invalidate`**, listener anche su `admin:cities:updated`, focus, storage.
+- [x] **Migrazione legacy:** `migrate-local-camerieri-to-staff.ts` + primo run dopo login in `App.tsx`; marker **`admin:camerieri:v1-local-drained-at`**; chiave storica **`admin:camerieri:crm:v1`** solo per import one-shot (JSDoc nel file).
+- [x] **Promozione:** `staff-promotion.ts` (`upsertStaff` + mapper con `profilePhotoStoragePath`). Dopo promozione **riuscita**, `useCandidateBoardState` archivia il candidato (stesso percorso del menu «Archivia» → sync `pipeline_stage`).
+- [x] **Tipi:** `Cameriere.city` = **`CandidateCitySlug`** (sedie dinamiche).
+- [ ] **`CreateCameriereDialog`:** ancora placeholder.
 
-#### Strategia di implementazione usata (safe order)
-0. allineamento note + scope `now vs future`;
-1. fondazioni dati (modello + storage locale versionato + idempotenza);
-2. sidebar/routing per flusso end-to-end navigabile;
-3. pagina CRM desktop (singolo pannello);
-4. tabella con ricerca/filtro e CTA placeholder;
-5. promozione da board candidati verso storage camerieri;
-6. hardening con build/lint/test board.
+#### Moduli (`admin/src/components/camerieri/`)
 
-#### Stato implementato ORA
-- [x] Sidebar/routing Camerieri allineato alle **città attive** ma **solo** slug `modena` / `sassari` supportati dallo storage CRM (`SUPPORTED_WAITER_CITY_SLUGS` in `App.tsx`).
-- [x] Pagina CRM desktop a pannello unico (`CamerieriPage`).
-- [x] CRM operativo con colonne minime richieste:
-  - avatar;
-  - nome e cognome;
-  - contatto (azioni rapide);
-  - stato attivo;
-  - tag sintetici (icone).
-- [x] Ricerca base (nome/email/telefono/tag) + filtro stato (`all|active|inactive`).
-- [x] CTA `Crea Cameriere` con dialog placeholder.
-- [x] Modello dati dedicato `Cameriere` separato da `Candidato`.
-- [x] Storage locale versionato dedicato:
-  - key: `admin:camerieri:crm:v1`;
-  - parser/sanitizer robusto con fallback safe;
-  - bucket per citta `modena|sassari`.
-  - eventuali chiavi legacy nel JSON (es. dati rimossi da vecchie prove) possono restare nel blob ma non sono lette dal modello corrente.
-- [x] Promozione da board candidati (`Promuovi a Cameriere`) con idempotenza minima:
-  - upsert su `sourceCandidateId`;
-  - no duplicazioni evidenti anche su promozioni ripetute.
+`types.ts`, `mappers.ts`, `staff-repository.ts`, `staff-events.ts`, `staff-promotion.ts`, `migrate-local-camerieri-to-staff.ts`, `useCamerieri.ts`, `CamerieriPage.tsx`, `CamerieriCrmPanel.tsx`, `CamerieriTable.tsx`, `CreateCameriereDialog.tsx`. Rimosso **`storage.ts`**. Integrazioni: `App.tsx`, `useCandidateBoardState`.
 
-#### Struttura modulare introdotta
-`admin/src/components/camerieri/`
-- `types.ts`
-- `storage.ts`
-- `mappers.ts`
-- `useCamerieri.ts`
-- `CamerieriPage.tsx`
-- `CamerieriCrmPanel.tsx`
-- `CamerieriTable.tsx`
-- `CreateCameriereDialog.tsx`
+#### Evoluzioni candidate (promozione) da valutare
 
-Integrazioni cross-modulo:
-- `admin/src/App.tsx` (sidebar + routing);
-- board candidati (`CandidateCard` / `KanbanColumn` / `CandidatiBoard` / `useCandidateBoardState`) per azione promozione.
+- **A — Archivio con nota:** es. «Promozione a staff in data …» (`admin_workflow`, nota, o colonne dedicate).
+- **B — Promozione + delete:** rimuovere / `DELETE` `candidates` se la storia deve vivere solo su `staff`.
 
-#### Criteri di accettazione coperti
-- [x] Sidebar Candidati: voci da `listActiveCities()` (ordine sedi); Camerieri: stesso ingresso ma filtrato ai due slug legacy finché lo storage è solo `modena|sassari`.
-- [x] CRM operativo con Avatar + Nome/Cognome (e colonne CRM minime utili).
-- [x] Bottone `Crea Cameriere` apre dialog placeholder.
-- [x] Context menu candidati consente promozione con persistenza locale.
+[`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md).
 
-#### Smoke test manuale minimo (regressioni)
-- [ ] Navigazione sidebar:
-  - aprire `Camerieri > Modena` e `Camerieri > Sassari`, verificare pagina corretta.
-- [ ] CRM:
-  - verificare rendering tabella, ricerca e filtro stato.
-- [ ] CTA placeholder:
-  - click `Crea Cameriere`, apertura/chiusura dialog.
-- [ ] Promozione da board:
-  - da card candidato -> `Promuovi a Cameriere`;
-  - verificare record in citta corretta e assenza duplicazione su click ripetuto.
-- [ ] Persistenza:
-  - reload pagina e verifica mantenimento dati camerieri.
+#### Smoke manuale (Camerieri)
 
-#### Rimandato alla prossima iterazione
-- [ ] Dialog `Crea Cameriere` completo (form, validazioni, salvataggio).
-- [ ] Backend wiring `Camerieri` (migrazione da localStorage a sorgente remota + policy/tenant).
+- [ ] Camerieri: almeno **due** sedi attive in sidebar.
+- [ ] Tabella CRM vs Supabase **`staff`**; ricerca e filtri.
+- [ ] `Promuovi a Cameriere`: riga `staff` + candidato in **Archivio** dopo reload.
+
+#### Rimandato
+
+Form **Crea Cameriere**, test Vitest repo staff (opzionale), scelta A vs B sopra.
 
 ---
 
@@ -167,14 +126,14 @@ Integrazioni cross-modulo:
 - **Date policy**: evitare `new Date(...)` inline nei render; usare helper centralizzati e fallback.
 - **Board persistence policy** (2026-05-01, gate **L5**): sorgente condivisa su `public.candidates` via Supabase autenticato (`admin/src/components/candidati-board/candidates-repository.ts`). Niente blob locale. Ordinamento intra-colonna via `kanban_rank numeric` con strategia midpoint float (`(prev + next) / 2`); workflow UI non normalizzato in `admin_workflow jsonb`. Writeback ottimistico diff-based dentro `useCandidateBoardState`: ogni mutation aggiorna lo state e in parallelo emette UPDATE/DELETE; gli errori di sync compaiono come banner sopra la board. Evento `admin:candidates:board-updated` mantenuto come signal UI post-writeback per badge sidebar e count "Nuovo".
 - **Filters policy**: filtri `Nuovo` persistenti per citta; filtro nascosto => filtro disattivato/reset.
-- **Discard policy**: `scartati` è stato strutturato (catalogo ragioni v1 chiuso + nota opzionale). Il move avviene solo dopo conferma del dialog (parità con `colloquio`/`postpone`). Uscire dalla colonna (`Ripristina`, archivio, drop su altra colonna) ripulisce automaticamente `discardReasonKey|Note|At|ReturnStatus` via `clearDiscardMetadataIfNeeded`. `Promuovi a Cameriere` non è esposto in `scartati`.
+- **Discard policy**: `scartati` è stato strutturato (catalogo ragioni v1 chiuso + nota opzionale). Il move avviene solo dopo conferma del dialog (parità con `colloquio`/`postpone`). Uscire dalla colonna (`Ripristina`, archivio, drop su altra colonna) ripulisce automaticamente `discardReasonKey|Note|At|ReturnStatus` via `clearDiscardMetadataIfNeeded`. `Promuovi a Cameriere` non è esposto in `scartati`; se la promozione su `staff` riesce, il candidato viene **archiviato** automaticamente (stesso path del menu «Archivia»).
 - **Contract policy**: nuove key CMS prima in `@g3/content-contract`, poi propagate ad admin/web.
 - **Auth policy** (2026-05-01, **E5** / **L4** baseline): senza Supabase configurato (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) o senza sessione valida resta **`AdminLoginPage`**; dati operativi dietro RLS **`authenticated`** (`admin/src/App.tsx`). Residuo: hardening deploy (HTTPS, cookie, URL non indicizzato) checklist pre-prod.
 - **Campagne status policy**: usare `first_data_at` (primo `page_view` con `cid`) e `last_data_at` (ultimo evento attribuito) come uniche fonti canoniche.
 - **Campagne query policy**: derivare `No dati|Attiva|Disattiva` a runtime (finestra 5 giorni) senza persistere `status` in colonna nella v1.
 - **Campagne identity policy**: `campaigns.id` (uuid) è l’ID interno canonico; `cid` resta token corto pubblico per link tracking.
-- **Cities legacy policy**: gli slug `modena` / `sassari` non sono eliminabili da UI (**Config › Sedi**, regole dedicate) mentre **Camerieri** restano su storage locale bucketato solo su quegli slug e per coerenza con dati operativi legati alle sedi; disattivazione consentita.
-- **Waiters sidebar policy**: la navigazione CRM Camerieri espone solo slug presenti in `SUPPORTED_WAITER_CITY_SLUGS` finché `admin:camerieri:crm:v1` resta bucketato su `modena|sassari`.
+- **Cities legacy policy**: gli slug `modena` / `sassari` non sono eliminabili da UI (**Config › Sedi**, regole dedicate); disattivazione consentita. **Camerieri** seguono tutte le sedi **attive** (`listActiveCities`); i dati sono su **`public.staff`** (`city_id` FK), senza dipendenza da localStorage legacy.
+- **Staff / promozione policy (2026-05-02):** promozione = scrittura `staff` + archivio `candidates` al successo. Valutazioni future: nota strutturata in archivio (*Promozione in data …*) vs **DELETE** candidato — vedi § Camerieri e [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md).
 
 ---
 
@@ -209,7 +168,7 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 | Visibilità filtri `Nuovo` | `admin:candidates:new-column-filters:visibility:v1:{slug-sede}` | Restano preferenze locali |
 | Recap giornaliero | `admin:candidates:daily-recap:dismissed-on` | Preferenza locale, non DB v1 |
 | Messaggi contatti | ~~`admin:contact-messages:v1`~~ (legacy); lista ora da **`contact_messages`** | `contact_messages` (L2 ✓) |
-| Camerieri CRM | `admin:camerieri:crm:v1` + evento `admin:camerieri:updated` | `staff` |
+| Camerieri CRM | ~~`admin:camerieri:crm:v1`~~ migrato one-shot → **`public.staff`**; evento UI staff `admin:camerieri-staff:list-invalidate` | `staff` ✓ |
 | Sedi | ~~`admin:cities:v1`~~ (legacy); dati da **`public.cities`**; evento **`admin:cities:updated`** solo segnale UI post-mutazione | `cities` (E4 ✓) |
 | Board update | evento `admin:candidates:board-updated` | Mantenuto come signal UI post-writeback DB (sidebar badge + count "Nuovo") |
 | Tema admin | `admin-theme-preference` (`admin-theme` legacy) | Resta localStorage |
@@ -239,7 +198,7 @@ Stato 2026-05-01: completati **audit ERD (D1)** e **migrazioni SQL v1 (E1)** in 
   - `contact_messages`: `updated_at` + workflow `nuovo|letto|archiviato`;
   - `candidates` (A4 / migrazione `0080`): `pipeline_stage` esteso con `scartati`; nuove colonne `discard_reason_key|note|discarded_at|return_status` con CHECK whitelistati e indice parziale `candidates_discard_reason_idx where discard_reason_key is not null`.
   - `candidates` (E4/L5 / migrazione `0150`): `admin_workflow jsonb` (snapshot UI workflow non normalizzato, no CHECK in v1) + `kanban_rank numeric` scoped per `(city_id, pipeline_stage)` (strategia midpoint float, indice composito `candidates_city_stage_rank_idx`).
-- **Perimetro residuo:** E3 (Storage CMS/campagne oltre careers); E4 residuo (**camerieri**, **campagne** — sedi, messaggi e board candidati già migrati); L3 come da roadmap.
+- **Perimetro residuo:** E3 (Storage CMS/campagne oltre careers); E4 residuo (**solo campagne** — sedi, messaggi, board candidati e **Camerieri/staff** già migrati); L3 come da roadmap.
 
 Riferimenti: `supabase/README.md`, `docs/CAMPAIGNS_CONTRACT.md`, `docs/ANALYTICS_INGEST_CONTRACT.md`, `docs/DB_CMS_INTEGRATION.md`.
 
@@ -281,6 +240,10 @@ Priorita consigliata: `CandidatiBoard` -> `CandidateDetailSheet` -> `CmsWebEdito
 - Ambiente locale web riallineato: creato `web/.env` con endpoint function Supabase (`career-submissions`, `contact-submissions`) + `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
 - Fix gateway Functions **401**: il browser deve inviare `Authorization: Bearer <anon>` + `apikey` (`web/lib/supabase-edge-invoke-headers.ts` usato da careers e contact).
 
+### Aggiornamento admin — Camerieri / staff (2026-05-02)
+
+- Wiring **`public.staff`**: repository, sidebar su tutte le sedi attive, migrazione localStorage legacy, promozione con archivio automatico sul candidato al successo. Dettaglio: [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md), [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) § E4, § Camerieri in questo file.
+
 ### Aggiornamento deploy (2026-05-02)
 
 - **Vercel:** due progetti (**`web`** + **`admin`**) con env `VITE_*` allineate al minimo operativo; **senza** `VITE_ANALYTICS_INGEST_URL` finché non si attiva ingest remoto (resta solo buffer locale sul sito — vedi roadmap C4).
@@ -295,4 +258,5 @@ Priorita consigliata: `CandidatiBoard` -> `CandidateDetailSheet` -> `CmsWebEdito
 2. Eseguire `pnpm test:board`.
 3. Se tocchi CMS: verificare allineamento con `@g3/content-contract`.
 4. Se tocchi board: smoke test su DnD, dialog workflow, recap, filtri, persistenza.
-5. Se introduci fetch remoto: passare sempre da adapter/normalizzazione con fallback.
+5. Se tocchi Camerieri / `staff` o promozione: smoke su `pnpm build:admin`, lista CRM vs Supabase **`staff`**, promozione → archivio candidato (vedi § Camerieri).
+6. Se introduci fetch remoto: passare sempre da adapter/normalizzazione con fallback.

@@ -47,7 +47,7 @@ Sostituire (o integrare dietro flag) **`application-office-cities.ts`** con fetc
 
 1. Prima sincronizzazione: **import una tantum** da `localStorage` vs **solo DB** e reset manuale?
 2. Il web legge le sedi **sempre da API** al boot o si cache-a in sessione?
-3. Camerieri **`SUPPORTED_WAITER_CITY_SLUGS`**: resta hardcoded finché lo staff CRM non è multi-sede?
+3. ~~Camerieri **`SUPPORTED_WAITER_CITY_SLUGS`**: resta hardcoded~~ — **Superato (2026-05-02):** Camerieri usano **`activeCities`** come la board; dati su **`public.staff`**.
 
 ### Definition of done
 

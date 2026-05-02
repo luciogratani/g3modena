@@ -42,7 +42,7 @@ import { useNewColumnFilters } from "./useNewColumnFilters"
 import { useBoardRecap } from "./useBoardRecap"
 import { useBoardWorkflowDialogs } from "./useBoardWorkflowDialogs"
 import { useBoardWorkflowDetails } from "./useBoardWorkflowDetails"
-import { promoteCandidateToCameriere } from "@/src/components/camerieri/storage"
+import { promoteCandidateToCameriere } from "@/src/components/camerieri/staff-promotion"
 import {
   applyTrainingSublaneToCandidate,
   getTrainingSublaneIdFromDrop,
@@ -466,7 +466,13 @@ export function useCandidateBoardState(
   function handlePromoteToWaiter(candidateId: string) {
     const candidate = boardState.byId[candidateId]
     if (!candidate) return
-    promoteCandidateToCameriere(candidate)
+    void promoteCandidateToCameriere(candidate)
+      .then(() => {
+        handleArchiveCandidate(candidateId)
+      })
+      .catch((err: unknown) => {
+        console.error("Promozione cameriere su staff fallita.", err)
+      })
   }
 
   const selectedCandidate = selectedCandidateId ? boardState.byId[selectedCandidateId] ?? null : null

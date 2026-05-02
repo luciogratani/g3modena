@@ -2,7 +2,7 @@
 
 Sequenza concordata per arrivare al **wiring Supabase** e all’**Auth** per ultimi. Usa le checkbox per segnare l’avanzamento.
 
-Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB_CMS_INTEGRATION.md`](DB_CMS_INTEGRATION.md), [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md), [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md), [`ANALYTICS_INGEST_CONTRACT.md`](ANALYTICS_INGEST_CONTRACT.md).
+Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB_CMS_INTEGRATION.md`](DB_CMS_INTEGRATION.md), [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md), [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md), [`ANALYTICS_INGEST_CONTRACT.md`](ANALYTICS_INGEST_CONTRACT.md). Smoke manuale gestionale: [`SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md).
 
 ---
 
@@ -15,7 +15,7 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
   UI **Config › Sedi** (`OfficeCity`). Storicamente `localStorage` (`admin:cities:v1`); **E4 (2026-05-01):** `public.cities` via Supabase autenticato, evento `admin:cities:updated` mantenuto per sidebar, nessun import automatico dal vecchio storage. Regole eliminazione legacy `modena` / `sassari` + messaggi FK.
 
 - [x] **A3 — Board e sidebar candidati dinamiche**  
-  Sidebar **Candidati** e titoli pagina da **`listActiveCities()`** (ordine `sortOrder`); badge “Nuovo” per **slug** (`Record<string, number>`). Stato **`Page`**: `{ kind: static }` \| `{ kind: candidates, citySlug }` \| `{ kind: waiters, citySlug }`. Listener **`admin:cities:updated`** per ricalcolo città + badge. Board/parametri (`CandidatiBoard`, `board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`) su **slug stringa** generica. `getCandidateCityLabel()` da slug arbitrario (title case da `-`). **Camerieri:** stessa lista città attive ma **filtrata** a slug con storage supportato (`modena`, `sassari` — `SUPPORTED_WAITER_CITY_SLUGS` in `App.tsx`) fino ad estensione CRM multi-sede.
+  Sidebar **Candidati** e titoli pagina da **`listActiveCities()`** (ordine `sortOrder`); badge “Nuovo” per **slug** (`Record<string, number>`). Stato **`Page`**: `{ kind: static }` \| `{ kind: candidates, citySlug }` \| `{ kind: waiters, citySlug }`. Listener **`admin:cities:updated`** per ricalcolo città + badge. Board/parametri (`CandidatiBoard`, `board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`) su **slug stringa** generica. `getCandidateCityLabel()` da slug arbitrario (title case da `-`). **Camerieri:** stessa lista **città attive** della sidebar Candidati (**`activeCities`** in `App.tsx`); CRM su **`public.staff`** (2026-05-02).
 
 - [x] **A4 — Quinta colonna board "Scartati"** (2026-05-01)  
   Quinta colonna kanban dedicata agli scarti con motivazione strutturata. Catalogo ragioni v1 (`DiscardReasonKey`, 8 chiavi: `not_a_fit`, `no_show`, `declined_by_candidate`, `unreachable`, `duplicate`, `failed_interview`, `failed_training`, `other`) + nota opzionale (obbligatoria se `other`, max 500 char). Entry: context menu **Scarta** + drop su colonna; il move avviene solo dopo conferma del dialog. Ripristino tramite **Ripristina** (context menu / sheet) che usa `discardReturnStatus` con fallback `nuovo`. Cleanup metadata simmetrico a `postpone` (`clearDiscardMetadataIfNeeded`). DB: migrazione `20260501000080_alter_candidates_discard.sql` estende `pipeline_stage` CHECK e aggiunge colonne `discard_reason_key`, `discard_reason_note`, `discarded_at`, `discard_return_status` con CHECK whitelistati e indice parziale.
@@ -77,7 +77,7 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 - [ ] **E4 — Adapter admin**  
   Sostituzione `localStorage` (board, camerieri, campagne, …) con fetch Supabase.  
-  2026-05-01: **messaggi** (`contact_messages`) + Edge `contact-submissions`; **sedi** `public.cities` (admin autenticato + web anon + fallback statico; prompt storico [`PROMPT_CHAT_E4_CITIES_SUPABASE.md`](PROMPT_CHAT_E4_CITIES_SUPABASE.md)); **board** `candidates` (`admin_workflow jsonb` + `kanban_rank numeric` migrazione `0150`, repository condiviso multi-browser con writeback ottimistico, evento `admin:candidates:board-updated` mantenuto come signal post-writeback; mock `mockCandidates.CANDIDATES` solo come fixture/test, fuori dal percorso online; **nota:** `mockCandidates.ts` resta in bundle per **tipi** `Candidate` e cataloghi UI **`DISCARD_REASON_*`**; prompt storico [`PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md`](PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md)). Restano **camerieri**, **campagne**.
+  2026-05-01: **messaggi** (`contact_messages`) + Edge `contact-submissions`; **sedi** `public.cities` (admin autenticato + web anon + fallback statico; prompt storico [`PROMPT_CHAT_E4_CITIES_SUPABASE.md`](PROMPT_CHAT_E4_CITIES_SUPABASE.md)); **board** `candidates` (`admin_workflow jsonb` + `kanban_rank numeric` migrazione `0150`, repository condiviso multi-browser con writeback ottimistico, evento `admin:candidates:board-updated` mantenuto come signal post-writeback; mock `mockCandidates.CANDIDATES` solo come fixture/test, fuori dal percorso online; **nota:** `mockCandidates.ts` resta in bundle per **tipi** `Candidate` e cataloghi UI **`DISCARD_REASON_*`**; prompt storico [`PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md`](PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md)). **2026-05-02 — Camerieri / `staff`:** [`staff-repository.ts`](../admin/src/components/camerieri/staff-repository.ts), `useCamerieri` da DB, migrazione locale one-shot, `staff-promotion.ts` + dopo promozione OK **archivio** candidato; evento UI `admin:camerieri-staff:list-invalidate`. Dettaglio e roadmap evolutiva promozione → nota vs delete: [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md). Resta **campagne** (local/demo).
 
 - [x] **E5 — Pagina Auth + guard** (2026-05-01)  
   Login Supabase Auth funzionante; env Vite (`admin/.env` / `.env.local`, non `.env.example`). Route protette nel gestionale.
@@ -86,7 +86,7 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 
 ## Gate pre-lancio — cosa è bloccante
 
-Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers receiver, § «TODO pre-lancio effettivo», smoke Camerieri). **Bloccante** = rischio perdita dati, UX rotta in prod, o superficie admin esposta senza protezione.
+Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers receiver, § «TODO pre-lancio effettivo»). Smoke Camerieri / `staff` conviene ancora prima del go-live ma non è elencato come gate separato. **Bloccante** = rischio perdita dati, UX rotta in prod, o superficie admin esposta senza protezione.
 
 ### Bloccanti tipici prima di produzione «vera»
 
@@ -109,7 +109,7 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 - **C4** — flush/export analytics (buffer già presente; utile ma non impedisce il sito).
 - **A5** — dashboard KPI raffinati (A4 chiuso).
-- Smoke test manuali Camerieri, dialog «Crea Cameriere» completo, refactor frammentazione (`CandidatiBoard`, `careers-form`, …) — qualità/tech debt, non prerequisito minimo funzionale.
+- Smoke test manuali residuali (dialog **Crea Cameriere** ancora placeholder, eventuale policy **delete** candidato post-promozione), refactor frammentazione (`CandidatiBoard`, `careers-form`, …) — qualità/tech debt, non prerequisito minimo funzionale.
 
 ---
 
@@ -117,4 +117,4 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist (2026-05-01): **E4** avanzato con **`cities`** + **board `candidates`** (gate **`L5`** chiuso); prima **messaggi**, **L1**, **L2**, **E2**, **E5**, **L4**. **Prossimo focus tecnico consigliato:** **camerieri** / **campagne** (residui **E4**), gate **L3**, residuo **E3**, **A5**.
+Ultimo aggiornamento checklist (2026-05-02): **E4** ulteriormente avanzato con **Camerieri / `staff`** (Supabase); resta residuo **campagne**. Precedentemente (2026-05-01): **`cities`** + **board `candidates`** (gate **`L5`** chiuso); **messaggi**, **L1**, **L2**, **E2**, **E5**, **L4**. **Prossimo focus tecnico consigliato:** **campagne** (E4), gate **L3**, residuo **E3**, **A5**; evoluzioni CRM staff (form creazione, nota promozione vs delete candidato) come da [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md).

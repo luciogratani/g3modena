@@ -1,25 +1,41 @@
 import { useMemo, useState } from "react"
-import { Plus, Search } from "lucide-react"
+import { Loader2, Plus, Search } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { CandidateCity } from "@/src/data/mockCandidates"
+import { Skeleton } from "@/components/ui/skeleton"
+import type { CandidateCitySlug } from "@/src/data/mockCandidates"
 import { CreateCameriereDialog } from "./CreateCameriereDialog"
 import { CamerieriCrmPanel } from "./CamerieriCrmPanel"
 import { useCamerieri, type CamerieriActiveFilter } from "./useCamerieri"
 
 type CamerieriPageProps = {
-  city: CandidateCity
+  city: CandidateCitySlug
 }
+
+const CAMERIERI_PAGE_LOADING_ROWS = Array.from({ length: 10 }, (_, i) => `camerieri-page-loading-${i}`)
 
 /**
  * Desktop CRM container for Camerieri area (single pane).
  */
 export function CamerieriPage({ city }: CamerieriPageProps) {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
-  const { items, filteredItems, searchQuery, setSearchQuery, activeFilter, setActiveFilter } = useCamerieri(city)
+  const {
+    items,
+    filteredItems,
+    loading,
+    error,
+    reload,
+    searchQuery,
+    setSearchQuery,
+    activeFilter,
+    setActiveFilter,
+  } = useCamerieri(city)
   const activeCount = useMemo(() => items.filter((item) => item.isActive).length, [items])
+  const showInitialSkeleton = loading && items.length === 0
+  const refreshing = loading && items.length > 0
 
   return (
     <div className="h-full min-h-0 p-6">
@@ -47,6 +63,7 @@ export function CamerieriPage({ city }: CamerieriPageProps) {
             </Select>
           </div>
           <div className="flex items-center justify-center gap-2">
+            {refreshing ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : null}
             <Badge variant="secondary">Totale: {items.length}</Badge>
             <Badge variant="outline">Attivi: {activeCount}</Badge>
           </div>
@@ -60,7 +77,26 @@ export function CamerieriPage({ city }: CamerieriPageProps) {
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
           <div className="h-full min-h-0 overflow-auto">
-            <CamerieriCrmPanel items={filteredItems} />
+            {error ? (
+              <div className="flex flex-col gap-4 p-6">
+                <Alert variant="destructive">
+                  <AlertTitle>Caricamento non riuscito</AlertTitle>
+                  <AlertDescription className="whitespace-pre-wrap">{error}</AlertDescription>
+                </Alert>
+                <Button variant="outline" disabled={loading} onClick={() => void reload()} className="w-fit shrink-0">
+                  {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                  Riprova
+                </Button>
+              </div>
+            ) : showInitialSkeleton ? (
+              <div className="flex flex-col gap-2 p-6">
+                {CAMERIERI_PAGE_LOADING_ROWS.map((rowKey) => (
+                  <Skeleton key={rowKey} className="h-10 w-full" />
+                ))}
+              </div>
+            ) : (
+              <CamerieriCrmPanel items={filteredItems} />
+            )}
           </div>
         </div>
       </div>
