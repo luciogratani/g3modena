@@ -148,7 +148,7 @@ Integrare nell’analisi operativa; validare sul codice solo se serve.
 
 ### Storia nota (se i doc sono vecchi, la Chat A lo segnala)
 
-- E4 è parziale: **cities**, **messaggi**, **board** su DB; tipicamente restano **camerieri** e **campagne** su persistenza locale fino a iter successiva.
+- E4 è sostanzialmente avanzato: **cities**, **messaggi**, **board**, **staff** (**Camerieri**), **campagne** (`public.campaigns` + preview storage) su DB — verificare i singoli `.md` / prompt se un doc più vecchio suggerisce ancora solo localStorage.
 
 ---
 

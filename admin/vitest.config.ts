@@ -9,7 +9,11 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    include: ["tests/board/**/*.test.ts", "tests/board/**/*.test.tsx"],
+    include: [
+      "tests/board/**/*.test.ts",
+      "tests/board/**/*.test.tsx",
+      "tests/campagne/**/*.test.ts",
+    ],
     clearMocks: true,
     restoreMocks: true,
   },

@@ -1,8 +1,8 @@
 # Smoke test — Admin (`g3modena`)
 
-Checklist **manuale** rapida dopo deploy o prima di un rilascio. Ordine suggerito: prerequisiti → blocchi **A→G**. Segna le caselle mentre procedi.
+Checklist **manuale** rapida dopo deploy o prima di un rilascio. Ordine suggerito: prerequisiti → blocchi **A→H**. Segna le caselle mentre procedi.
 
-**Tempo indicativo:** ~20–35 minuti (dipende da dati sul DB).
+**Tempo indicativo:** ~25–40 minuti (dipende da dati sul DB).
 
 ---
 
@@ -72,13 +72,24 @@ Scegli un **candidato di test** (non critico per produzione se possibile).
 
 ---
 
-## G — Comandi da terminale (regressioni build)
+## G — Marketing › Campagne (`public.campaigns`) (~5 min)
+
+- [ ] Da **Marketing › Campagne**: la lista coincide con **`public.campaigns`** in Table Editor (dopo reload).
+- [ ] Builder: compilazione minimi (`name`, `subtitle`, immagine jpeg/png/webp, `utm_campaign`, base URL `https…`) → **Crea campagna** senza errore upload storage.
+- [ ] Nuova campagna ancora presente dopo **F5**; link copiabile con **`cid`** uguale a colonna **`cid`** in DB (`L1` deve risolvere `campaign_id` con lo stesso token).
+- [ ] Badge stato card: **`No dati`** finché `first_data_at` **NULL** in DB è **normale**: non viene popolato dall’admin (`DEVELOPMENT_NOTES.md` § campagne · ingest backlog).
+- [ ] KPI numerici sulla card (**visite, CTA, funnel…**) restano a **zero**/placeholder finché non sarà implementato il **prompt Campagne Step 6** (aggregate su **`analytics_events`**) — atteso in roadmap futura.
+
+---
+
+## H — Comandi da terminale (regressioni build)
 
 Dalla root del monorepo:
 
 ```bash
 pnpm build:admin
 pnpm test:board
+# opzionale: `cd admin && pnpm exec vitest run --config vitest.config.ts tests/campagne`
 ```
 
 - [ ] `build:admin`: **exit code 0** (TypeScript + Vite produce `admin/dist`).

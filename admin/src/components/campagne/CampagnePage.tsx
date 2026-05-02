@@ -6,6 +6,7 @@ import {
   Eye,
   FileCheck,
   FileInput,
+  Loader2,
   MapPinned,
   MousePointerClick,
   Plus,
@@ -14,6 +15,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -28,44 +30,28 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  generateCampaignCid,
+  normalizeBaseUrlForCampaign,
+  validateCampaignBuilderSubmit,
+} from "./campaign-builder-validation"
+import {
+  getCampaignLifecycle,
+  insertCampaign,
+  isCampaignCidConflictError,
+  uploadCampaignCreative,
+} from "./campaigns-repository"
+import type { CampaignLifecycle, CampaignRecord } from "./types"
+import { useCampagneList } from "./useCampagneList"
 
-const INACTIVE_THRESHOLD_DAYS = 5
 const HIDE_SCROLLBAR_CLASS =
   "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
 const CAMPAIGN_CARD_CLASS = `flex h-full min-h-0 w-[400px] min-w-[400px] flex-col overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`
 const BUILDER_CARD_COLLAPSED_CLASS = `flex h-full min-h-0 w-[160px] min-w-[160px] flex-col overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`
 const BUILDER_CARD_EXPANDED_CLASS = `flex h-full min-h-0 w-[400px] min-w-[400px] flex-col overflow-y-auto overflow-x-hidden ${HIDE_SCROLLBAR_CLASS}`
 
-type CampaignMetrics = {
-  pageView: number
-  ctaClick: number
-  formOpen: number
-  careersSubmit: number
-  candidatesCreated: number
-  careersAbandonTotal: number
-  avgRegistrationSeconds: number
-  conversionByCity: Record<string, number>
-}
-
-type CampaignLifecycle = "waiting_data" | "active" | "inactive"
-
-type CampaignRecord = {
-  id: string
-  name: string
-  subtitle: string
-  startsAt: string
-  firstDataAt: string | null
-  lastDataAt: string | null
-  cid: string
-  baseUrl: string
-  utmSource: string
-  utmMedium: string
-  utmCampaign: string
-  utmTerm: string
-  utmContent: string
-  creativePreview: string
-  metrics: CampaignMetrics
-}
+const CAMPAIGNS_SKELETON_KEYS = ["campagne-sk-1", "campagne-sk-2", "campagne-sk-3"] as const
 
 type BuilderState = {
   name: string
@@ -89,132 +75,12 @@ type UrlBuilderParams = {
   cid: string
 }
 
-const EMPTY_METRICS: CampaignMetrics = {
-  pageView: 0,
-  ctaClick: 0,
-  formOpen: 0,
-  careersSubmit: 0,
-  candidatesCreated: 0,
-  careersAbandonTotal: 0,
-  avgRegistrationSeconds: 0,
-  conversionByCity: {},
-}
-
-const SEEDED_CAMPAIGNS: CampaignRecord[] = [
-  {
-    id: "c1a2b3c4-0000-0000-0000-000000000001",
-    name: "Estate Modena 2025",
-    subtitle: "Campagna recruiting stagionale",
-    startsAt: "2025-06-01",
-    firstDataAt: "2025-06-02T08:30:00.000Z",
-    lastDataAt: "2026-04-28T10:45:00.000Z",
-    cid: "a1f2k9z3",
-    baseUrl: "https://g3modena.com/lavora-con-noi",
-    utmSource: "instagram",
-    utmMedium: "paid_social",
-    utmCampaign: "estate_modena_2025",
-    utmTerm: "barista_modena",
-    utmContent: "video_story_a",
-    creativePreview: createSvgPlaceholder("Estate Modena", "#EAE4D9", "#6A5F4B"),
-    metrics: {
-      pageView: 1940,
-      ctaClick: 532,
-      formOpen: 248,
-      careersSubmit: 66,
-      candidatesCreated: 62,
-      careersAbandonTotal: 120,
-      avgRegistrationSeconds: 276,
-      conversionByCity: { modena: 49, sassari: 13 },
-    },
-  },
-  {
-    id: "c1a2b3c4-0000-0000-0000-000000000002",
-    name: "Autunno Sassari 2025",
-    subtitle: "Lead generation camerieri",
-    startsAt: "2025-09-01",
-    firstDataAt: "2025-09-02T09:15:00.000Z",
-    lastDataAt: "2026-04-29T07:15:00.000Z",
-    cid: "b4n7m2x8",
-    baseUrl: "https://g3modena.com/lavora-con-noi",
-    utmSource: "instagram",
-    utmMedium: "story",
-    utmCampaign: "autunno_sassari_2025",
-    utmTerm: "cameriere_sassari",
-    utmContent: "carousel_1",
-    creativePreview: createSvgPlaceholder("Autunno Sassari", "#EFE6D5", "#7D5930"),
-    metrics: {
-      pageView: 1260,
-      ctaClick: 384,
-      formOpen: 172,
-      careersSubmit: 49,
-      candidatesCreated: 47,
-      careersAbandonTotal: 82,
-      avgRegistrationSeconds: 301,
-      conversionByCity: { sassari: 33, modena: 14 },
-    },
-  },
-  {
-    id: "c1a2b3c4-0000-0000-0000-000000000003",
-    name: "Primavera 2024",
-    subtitle: "Test mercato Modena",
-    startsAt: "2024-03-01",
-    firstDataAt: "2024-03-04T10:00:00.000Z",
-    lastDataAt: "2026-03-30T11:10:00.000Z",
-    cid: "c8q5r1w4",
-    baseUrl: "https://g3modena.com/lavora-con-noi",
-    utmSource: "facebook",
-    utmMedium: "paid_social",
-    utmCampaign: "primavera_2024",
-    utmTerm: "part_time_modena",
-    utmContent: "image_static_b",
-    creativePreview: createSvgPlaceholder("Primavera", "#DDEED8", "#42613A"),
-    metrics: {
-      pageView: 980,
-      ctaClick: 220,
-      formOpen: 94,
-      careersSubmit: 21,
-      candidatesCreated: 20,
-      careersAbandonTotal: 52,
-      avgRegistrationSeconds: 334,
-      conversionByCity: { modena: 17, sassari: 3 },
-    },
-  },
-]
-
 function getDefaultBaseUrl(): string {
   return (import.meta.env.VITE_PUBLIC_SITE_ORIGIN as string | undefined) ?? "https://g3modena.com"
 }
 
-function createSvgPlaceholder(title: string, background: string, textColor: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="640" viewBox="0 0 420 640"><rect width="420" height="640" fill="${background}"/><text x="50%" y="44%" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" text-anchor="middle" fill="${textColor}">${title}</text><text x="50%" y="53%" font-family="Arial, Helvetica, sans-serif" font-size="18" text-anchor="middle" fill="${textColor}">Creative</text></svg>`
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-}
-
-function random4(): string {
-  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
-  const bytes = crypto.getRandomValues(new Uint8Array(4))
-  return Array.from(bytes)
-    .map((byte) => alphabet[byte % alphabet.length])
-    .join("")
-}
-
-function time4(): string {
-  return Date.now().toString(36).slice(-4).padStart(4, "0")
-}
-
-function generateShortCid(): string {
-  return `${random4()}${time4()}`
-}
-
 function toPercent(value: number): string {
   return `${(value * 100).toFixed(1)}%`
-}
-
-function getCampaignLifecycle(campaign: CampaignRecord): CampaignLifecycle {
-  if (!campaign.firstDataAt || !campaign.lastDataAt) return "waiting_data"
-  const diffMs = Date.now() - new Date(campaign.lastDataAt).getTime()
-  if (diffMs > INACTIVE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000) return "inactive"
-  return "active"
 }
 
 function getLifecycleMeta(status: CampaignLifecycle): { label: string; variant: "secondary" | "outline" } {
@@ -241,7 +107,7 @@ function buildCampaignUrlFromRecord(campaign: CampaignRecord): string {
 }
 
 function buildUtmUrl(state: UrlBuilderParams): string {
-  const url = new URL(state.baseUrl.startsWith("http") ? state.baseUrl : `https://${state.baseUrl}`)
+  const url = new URL(state.baseUrl)
   if (state.source) url.searchParams.set("utm_source", state.source)
   if (state.medium) url.searchParams.set("utm_medium", state.medium)
   if (state.campaign) url.searchParams.set("utm_campaign", state.campaign)
@@ -249,6 +115,24 @@ function buildUtmUrl(state: UrlBuilderParams): string {
   if (state.content) url.searchParams.set("utm_content", state.content)
   if (state.cid) url.searchParams.set("cid", state.cid)
   return url.toString()
+}
+
+function buildUtmUrlFromBuilderState(state: BuilderState): string {
+  const base = normalizeBaseUrlForCampaign(state.baseUrl)
+  if (!base.ok) return ""
+  try {
+    return buildUtmUrl({
+      baseUrl: base.value,
+      source: state.source.trim(),
+      medium: state.medium.trim(),
+      campaign: state.campaign.trim(),
+      term: state.term.trim(),
+      content: state.content.trim(),
+      cid: state.cid.trim(),
+    })
+  } catch {
+    return ""
+  }
 }
 
 function MetricRow({
@@ -273,7 +157,7 @@ function MetricRow({
 
 function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
   const [linkCopied, setLinkCopied] = useState(false)
-  const lifecycle = getCampaignLifecycle(campaign)
+  const lifecycle = getCampaignLifecycle(campaign.firstDataAt, campaign.lastDataAt)
   const lifecycleMeta = getLifecycleMeta(lifecycle)
   const campaignUrl = buildCampaignUrlFromRecord(campaign)
   const canCopyCampaignUrl = lifecycle !== "inactive"
@@ -424,12 +308,23 @@ function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
   )
 }
 
-function NewCampaignBuilderCard({ onCreateCampaign }: { onCreateCampaign: (campaign: CampaignRecord) => void }) {
+const CID_RETRY_MAX = 12
+
+function NewCampaignBuilderCard({
+  onPersistSuccess,
+}: {
+  onPersistSuccess: () => void | Promise<void>
+}) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [createdCampaignUrl, setCreatedCampaignUrl] = useState<string | null>(null)
   const [creativePreview, setCreativePreview] = useState<string | null>(null)
+  const [creativeFile, setCreativeFile] = useState<File | null>(null)
   const [isObjectUrl, setIsObjectUrl] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  /** Cid confermato in DB dall’ultimo insert riuscito (link copiabile allineato a questo token). */
+  const [persistedCampaignCid, setPersistedCampaignCid] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<BuilderState>({
     name: "",
@@ -440,7 +335,7 @@ function NewCampaignBuilderCard({ onCreateCampaign }: { onCreateCampaign: (campa
     campaign: "",
     term: "",
     content: "",
-    cid: generateShortCid(),
+    cid: generateCampaignCid(),
   })
 
   useEffect(() => {
@@ -451,15 +346,11 @@ function NewCampaignBuilderCard({ onCreateCampaign }: { onCreateCampaign: (campa
     }
   }, [creativePreview, isObjectUrl])
 
-  let builtUrl = ""
-  try {
-    builtUrl = buildUtmUrl(state)
-  } catch {
-    builtUrl = ""
-  }
+  const draftUrl = buildUtmUrlFromBuilderState(state)
+  const builtUrl = createdCampaignUrl ?? draftUrl
   const hasRequiredName = state.name.trim().length > 0
   const hasRequiredSubtitle = state.subtitle.trim().length > 0
-  const hasRequiredImage = Boolean(creativePreview)
+  const hasRequiredImage = Boolean(creativePreview && creativeFile)
   const hasRequiredBaseUrl = state.baseUrl.trim().length > 0
   const hasRequiredCampaign = state.campaign.trim().length > 0
   const hasRequiredFields =
@@ -470,8 +361,9 @@ function NewCampaignBuilderCard({ onCreateCampaign }: { onCreateCampaign: (campa
     hasRequiredCampaign
 
   async function handleCopy() {
-    if (!createdCampaignUrl) return
-    await navigator.clipboard.writeText(createdCampaignUrl)
+    const target = builtUrl
+    if (!target) return
+    await navigator.clipboard.writeText(target)
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1500)
   }
@@ -484,56 +376,110 @@ function NewCampaignBuilderCard({ onCreateCampaign }: { onCreateCampaign: (campa
       URL.revokeObjectURL(creativePreview)
     }
     setCreativePreview(objectUrl)
+    setCreativeFile(file)
     setIsObjectUrl(true)
     setCreatedCampaignUrl(null)
     setCopied(false)
+    setSubmitError(null)
   }
 
   function updateBuilderField<K extends keyof BuilderState>(key: K, value: BuilderState[K]) {
     setState((prev) => ({ ...prev, [key]: value }))
-    setCreatedCampaignUrl(null)
     setCopied(false)
+    setSubmitError(null)
   }
 
-  function handleCreateCampaign(): boolean {
-    if (!creativePreview || !hasRequiredFields) return false
-    const now = new Date()
-    const normalizedRecord: CampaignRecord = {
-      id: crypto.randomUUID(),
-      name: state.name.trim(),
-      subtitle: state.subtitle.trim(),
-      startsAt: now.toISOString(),
-      firstDataAt: null,
-      lastDataAt: null,
+  async function handlePersistCampaign() {
+    const msg = validateCampaignBuilderSubmit({
+      name: state.name,
+      subtitle: state.subtitle,
+      baseUrlRaw: state.baseUrl,
+      utmCampaign: state.campaign,
       cid: state.cid,
-      baseUrl: state.baseUrl.trim(),
-      utmSource: state.source.trim(),
-      utmMedium: state.medium.trim(),
-      utmCampaign: state.campaign.trim(),
-      utmTerm: state.term.trim(),
-      utmContent: state.content.trim(),
-      creativePreview,
-      metrics: { ...EMPTY_METRICS },
+      creativeFile,
+    })
+    if (msg) {
+      setSubmitError(msg)
+      return
     }
-    onCreateCampaign(normalizedRecord)
-    setCreatedCampaignUrl(buildCampaignUrlFromRecord(normalizedRecord))
-    setCopied(false)
-    return true
-  }
+    const base = normalizeBaseUrlForCampaign(state.baseUrl)
+    if (!base.ok || !creativeFile) return
 
-  function handleCreateAndReset() {
-    const created = handleCreateCampaign()
-    if (!created) return
+    setSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      const creativePath = await uploadCampaignCreative(creativeFile)
+      let cidAttempt = state.cid.trim()
+      let inserted: CampaignRecord | null = null
+
+      for (let attempt = 0; attempt < CID_RETRY_MAX; attempt++) {
+        try {
+          inserted = await insertCampaign({
+            name: state.name,
+            subtitle: state.subtitle,
+            cid: cidAttempt,
+            baseUrl: base.value,
+            utmCampaign: state.campaign.trim(),
+            creativeImagePath: creativePath,
+            utmSource: state.source.trim() || null,
+            utmMedium: state.medium.trim() || null,
+            utmTerm: state.term.trim() || null,
+            utmContent: state.content.trim() || null,
+          })
+          break
+        } catch (err) {
+          if (!isCampaignCidConflictError(err)) throw err
+          cidAttempt = generateCampaignCid()
+        }
+      }
+
+      if (!inserted) throw new Error("Impossibile assegnare un cid univoco. Riprova tra poco.")
+
+      setPersistedCampaignCid(inserted.cid)
+      setCreatedCampaignUrl(buildCampaignUrlFromRecord(inserted))
+
+      if (creativePreview && isObjectUrl) {
+        URL.revokeObjectURL(creativePreview)
+      }
+      setCreativePreview(null)
+      setCreativeFile(null)
+      setIsObjectUrl(false)
+      setCopied(false)
+      if (inputRef.current) inputRef.current.value = ""
+
+      setState((prev) => ({
+        ...prev,
+        name: "",
+        subtitle: "",
+        campaign: "",
+        term: "",
+        content: "",
+        cid: generateCampaignCid(),
+        baseUrl: prev.baseUrl,
+        source: prev.source,
+        medium: prev.medium,
+      }))
+
+      await onPersistSuccess()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Salvataggio campagna non riuscito.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   function handleCloseBuilder() {
     setOpen(false)
     setCopied(false)
     setCreatedCampaignUrl(null)
+    setSubmitError(null)
+    setPersistedCampaignCid(null)
     if (creativePreview && isObjectUrl) {
       URL.revokeObjectURL(creativePreview)
     }
     setCreativePreview(null)
+    setCreativeFile(null)
     setIsObjectUrl(false)
     if (inputRef.current) inputRef.current.value = ""
     setState({
@@ -545,7 +491,7 @@ function NewCampaignBuilderCard({ onCreateCampaign }: { onCreateCampaign: (campa
       campaign: "",
       term: "",
       content: "",
-      cid: generateShortCid(),
+      cid: generateCampaignCid(),
     })
   }
 
@@ -590,7 +536,7 @@ function NewCampaignBuilderCard({ onCreateCampaign }: { onCreateCampaign: (campa
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           onChange={onCreativeUpload}
           className="hidden"
           aria-label="Carica creativita campagna"
@@ -704,8 +650,18 @@ function NewCampaignBuilderCard({ onCreateCampaign }: { onCreateCampaign: (campa
               </div>
 
               <div className="grid gap-1.5">
-                <Label htmlFor="builder-cid">cid</Label>
+                <Label htmlFor="builder-cid">cid (generato automaticamente)</Label>
                 <Input id="builder-cid" value={state.cid} readOnly className="font-mono text-xs" />
+                {persistedCampaignCid ? (
+                  <p className="break-all text-xs font-mono text-muted-foreground">
+                    <span className="font-sans font-normal">Ultimo cid salvato su DB:</span> {persistedCampaignCid}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    In caso di conflitto su <span className="font-mono">cid</span> univoco viene rigenerato prima
+                    del salvataggio.
+                  </p>
+                )}
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -714,65 +670,121 @@ function NewCampaignBuilderCard({ onCreateCampaign }: { onCreateCampaign: (campa
         <div className="grid gap-1.5">
           <Label htmlFor="builder-url">URL finale</Label>
           <Input id="builder-url" value={builtUrl} readOnly className="font-mono text-xs" />
+          {persistedCampaignCid && createdCampaignUrl ? (
+            <p className="text-xs text-muted-foreground">
+              Link allineato al record Supabase (<span className="font-mono">cid={persistedCampaignCid}</span>).
+            </p>
+          ) : null}
         </div>
 
-        <Button type="button" variant="outline" onClick={() => void handleCopy()} disabled={!createdCampaignUrl}>
+        {submitError ? (
+          <Alert variant="destructive">
+            <AlertTitle>Impossibile salvare</AlertTitle>
+            <AlertDescription className="whitespace-pre-wrap">{submitError}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <Button type="button" variant="outline" onClick={() => void handleCopy()} disabled={!builtUrl || submitting}>
           {copied ? <Check className="mr-2 size-4" /> : <Copy className="mr-2 size-4" />}
           {copied ? "URL copiato" : "Copia URL campagna"}
         </Button>
-        <Button type="button" onClick={handleCreateAndReset} disabled={!hasRequiredFields}>
-          Crea campagna
+        <Button type="button" onClick={() => void handlePersistCampaign()} disabled={!hasRequiredFields || submitting}>
+          {submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+          {submitting ? "Salvataggio…" : "Crea campagna"}
         </Button>
         {!hasRequiredFields && (
           <p className="text-xs text-muted-foreground pb-6">
-            Compila i campi obbligatori (*) per creare la campagna.
+            Compila i campi obbligatori (*) per creare la campagna sul database.
           </p>
         )}
-        {hasRequiredFields && !createdCampaignUrl && (
+        {hasRequiredFields && !createdCampaignUrl && !submitError && (
           <p className="text-xs text-muted-foreground pb-6">
-            Crea prima la campagna, poi puoi copiare il link.
+            Salva sul server per generare il link definitivo copiabile.
           </p>
         )}
+        {createdCampaignUrl ? (
+          <p className="text-xs text-muted-foreground pb-6">
+            Campagna salvata su <span className="font-mono">public.campaigns</span>. Elenco aggiornato in
+            automatico.
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   )
 }
 
 export function CampagnePage() {
-  // "Table" dedicata in memoria per la milestone UI (simula la tabella campaigns).
-  const [campaignsTable, setCampaignsTable] = useState<CampaignRecord[]>(SEEDED_CAMPAIGNS)
+  const { items: remoteCampaigns, loading, error, reload } = useCampagneList()
 
   const orderedCampaigns = useMemo(() => {
-    const sorted = [...campaignsTable].sort(
+    const sorted = [...remoteCampaigns].sort(
       (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
     )
-    const waiting = sorted.filter((campaign) => getCampaignLifecycle(campaign) === "waiting_data")
-    const active = sorted.filter((campaign) => getCampaignLifecycle(campaign) === "active")
-    const inactive = sorted.filter((campaign) => getCampaignLifecycle(campaign) === "inactive")
+    const waiting = sorted.filter(
+      (c) => getCampaignLifecycle(c.firstDataAt, c.lastDataAt) === "waiting_data",
+    )
+    const active = sorted.filter((c) => getCampaignLifecycle(c.firstDataAt, c.lastDataAt) === "active")
+    const inactive = sorted.filter((c) => getCampaignLifecycle(c.firstDataAt, c.lastDataAt) === "inactive")
     return [...waiting, ...active, ...inactive]
-  }, [campaignsTable])
+  }, [remoteCampaigns])
 
-  function handleCreateCampaign(campaign: CampaignRecord) {
-    setCampaignsTable((previous) => [campaign, ...previous])
-  }
+  const showInitialSkeleton = loading && remoteCampaigns.length === 0 && !error
+  const refreshing = loading && remoteCampaigns.length > 0
+  const listEmpty = !loading && !error && orderedCampaigns.length === 0
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background p-6">
-      
+      <section className="flex min-h-0 flex-1 flex-col gap-4">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertTitle>Caricamento non riuscito</AlertTitle>
+            <AlertDescription className="whitespace-pre-wrap">{error}</AlertDescription>
+          </Alert>
+        ) : null}
 
-      <section aria-labelledby="campagne-cards-heading" className="flex min-h-0 flex-1 flex-col">
-      
+        <div className="flex shrink-0 items-center justify-end gap-2 empty:hidden">
+          {refreshing ? (
+            <>
+              <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />
+              <span className="text-xs text-muted-foreground">Aggiornamento elenco…</span>
+            </>
+          ) : null}
+        </div>
+
         <div className={`min-h-0 flex-1 overflow-x-auto overflow-y-hidden pb-2 ${HIDE_SCROLLBAR_CLASS}`}>
           <div className="flex h-full min-w-max items-stretch gap-4">
-            <NewCampaignBuilderCard onCreateCampaign={handleCreateCampaign} />
-            {orderedCampaigns.map((campaign) => (
-              <CampaignCard key={campaign.id} campaign={campaign} />
-            ))}
+            <NewCampaignBuilderCard onPersistSuccess={() => void reload()} />
+
+            {error ? (
+              <div className="flex w-[min(400px,90vw)] shrink-0 flex-col justify-start gap-3 pt-1">
+                <Button type="button" variant="outline" disabled={loading} onClick={() => void reload()}>
+                  {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                  Riprova
+                </Button>
+              </div>
+            ) : showInitialSkeleton ? (
+              CAMPAIGNS_SKELETON_KEYS.map((key) => (
+                <Skeleton key={key} className={`${CAMPAIGN_CARD_CLASS} h-[520px] shrink-0`} />
+              ))
+            ) : (
+              <>
+                {orderedCampaigns.map((campaign) => (
+                  <CampaignCard key={campaign.id} campaign={campaign} />
+                ))}
+                {listEmpty ? (
+                  <div className="flex w-[340px] max-w-[85vw] shrink-0 items-center rounded-lg border border-dashed px-6 py-8">
+                    <p className="text-sm text-muted-foreground">
+                      Nessuna riga in <span className="font-mono">public.campaigns</span>: crea una campagna dalla
+                      card a sinistra o aggiungi righe dalla Table Editor su Supabase. Le KPI restano a zero finché
+                      non sono collegate agli eventi.
+                    </p>
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
         </div>
       </section>
-
-      {/* Nota contesto rimossa dalla UI: metriche mock locali fino al wiring DB/analytics. */}
     </div>
   )
 }

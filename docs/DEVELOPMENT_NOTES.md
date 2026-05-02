@@ -37,7 +37,7 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 - [x] Microcopy client-facing ripulita (rimosso linguaggio troppo tecnico).
 - [x] Sidebar ripulita (`Showcase` rimosso, sezione candidati semplificata, badge collegati ai dati).
 - [x] Pagina `Impostazioni` reale con tema `light|dark|auto` + persistenza + migrazione chiave legacy.
-- [x] Pagina **Marketing › Campagne** (`CampagnePage`) MVP locale (builder UTM/`cid`, card demo); contratto operativo [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md). Wiring DB: [`PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md`](PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md).
+- [x] Pagina **Marketing › Campagne** (`CampagnePage`): lista da **`public.campaigns`**, storage **`campaign-previews`**, salvataggio builder con validazione contratto; KPI card ancora a zero senza query su **`analytics_events`**. **`first_data_at` / `last_data_at`:** solo dalla futura pipeline ingest (policy in § *Decisioni tecniche*). **Ripresa lavori:** KPI live + aggregati (**prompt Campagne Step 6**) in pausa fino a decisione progetto utente / modello più adatto e dati ingest; contratto [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md); orchestrazione [`PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md`](PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md).
 
 ### Board candidature
 - [x] Board **parametrizzata per `citySlug` stringa** (città da config `listActiveCities`), senza union rigida solo Modena/Sassari; filtri colonna `Nuovo` e stato board aggiornati di conseguenza (`board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`).
@@ -131,6 +131,12 @@ Form **Crea Cameriere**, test Vitest repo staff (opzionale), scelta A vs B sopra
 - **Auth policy** (2026-05-01, **E5** / **L4** baseline): senza Supabase configurato (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) o senza sessione valida resta **`AdminLoginPage`**; dati operativi dietro RLS **`authenticated`** (`admin/src/App.tsx`). Residuo: hardening deploy (HTTPS, cookie, URL non indicizzato) checklist pre-prod.
 - **Campagne status policy**: usare `first_data_at` (primo `page_view` con `cid`) e `last_data_at` (ultimo evento attribuito) come uniche fonti canoniche.
 - **Campagne query policy**: derivare `No dati|Attiva|Disattiva` a runtime (finestra 5 giorni) senza persistere `status` in colonna nella v1.
+- **Campagne `first_data_at` / `last_data_at` (Step E4 / backlog ingest, non admin):**
+  - In **INSERT** da Marketing › Campagna restano **NULL** — comportamento corretto.
+  - **Non** aggiornarli dall’admin (niente shortcut SQL di prova nella UI né “fake analytics”).
+  - Quando gli eventi finiscono in **`public.analytics_events`** con `campaign_id`/attribuzione `cid` stabile server-side (ingest dopo **C4** → Storage su Supabase): introdurre un solo percorso canale (meglio **post-insert evento** sicuro alle policy, alternativa aggregazione periodica documentata).
+  - Regole prodotti (`CAMPAIGNS_CONTRACT.md` §4): `first_data_at` si imposta quando è ancora **NULL** usando il timestamp dell’evento (primo segnale); su ogni evento attribuito aggiornare **`last_data_at`** (finestra attività/stato ciclo §2). Mantenere il CHECK `last_data_at >= first_data_at` nella stessa **transazione** (o RPC `SECURITY DEFINER`).
+  - Fino ad allora tutte le card marketing restano **`No dati`** su stato ciclo salvo compilazione artificiosa in SQL (solo troubleshooting, non prod).
 - **Campagne identity policy**: `campaigns.id` (uuid) è l’ID interno canonico; `cid` resta token corto pubblico per link tracking.
 - **Cities legacy policy**: gli slug `modena` / `sassari` non sono eliminabili da UI (**Config › Sedi**, regole dedicate); disattivazione consentita. **Camerieri** seguono tutte le sedi **attive** (`listActiveCities`); i dati sono su **`public.staff`** (`city_id` FK), senza dipendenza da localStorage legacy.
 - **Staff / promozione policy (2026-05-02):** promozione = scrittura `staff` + archivio `candidates` al successo. Valutazioni future: nota strutturata in archivio (*Promozione in data …*) vs **DELETE** candidato — vedi § Camerieri e [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md).
@@ -198,7 +204,7 @@ Stato 2026-05-01: completati **audit ERD (D1)** e **migrazioni SQL v1 (E1)** in 
   - `contact_messages`: `updated_at` + workflow `nuovo|letto|archiviato`;
   - `candidates` (A4 / migrazione `0080`): `pipeline_stage` esteso con `scartati`; nuove colonne `discard_reason_key|note|discarded_at|return_status` con CHECK whitelistati e indice parziale `candidates_discard_reason_idx where discard_reason_key is not null`.
   - `candidates` (E4/L5 / migrazione `0150`): `admin_workflow jsonb` (snapshot UI workflow non normalizzato, no CHECK in v1) + `kanban_rank numeric` scoped per `(city_id, pipeline_stage)` (strategia midpoint float, indice composito `candidates_city_stage_rank_idx`).
-- **Perimetro residuo:** E3 (Storage CMS/campagne oltre careers); E4 residuo (**solo campagne** — sedi, messaggi, board candidati e **Camerieri/staff** già migrati); L3 come da roadmap.
+- **Perimetro residuo:** E3 (Storage **CMS**/media senza baseline); **E4** — campagne ora su DB (**liste + persist**); restano KPI card campagne (**Step 6** prompt) dopo populate **`analytics_events`**, ingest timeline **`first_data_at`/`last_data_at`** (§ sopra); L3 come da roadmap.
 
 Riferimenti: `supabase/README.md`, `docs/CAMPAIGNS_CONTRACT.md`, `docs/ANALYTICS_INGEST_CONTRACT.md`, `docs/DB_CMS_INTEGRATION.md`.
 
@@ -206,6 +212,7 @@ Riferimenti: `supabase/README.md`, `docs/CAMPAIGNS_CONTRACT.md`, `docs/ANALYTICS
 
 ## TODO post-lancio / evolutivi
 
+- [ ] **Campagne › KPI card (prompt E4 Step 6):** query aggregate **`analytics_events`** / candidati per `campaign_id` come da [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md) §5 — in pausa (vedi [`PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md`](PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md)).
 - [ ] Publish flow CMS (`draft/published`, `updated_at`, versioning).
 - [ ] Storage media strutturato (bucket/policy/metadata completi).
 - [ ] Estensione lazy-load ad altre pagine pesanti (`Board`, `SEO`, `Settings`).

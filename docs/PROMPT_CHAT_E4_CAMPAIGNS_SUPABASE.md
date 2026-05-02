@@ -1,6 +1,8 @@
 # Prompt — E4 Campagne (`public.campaigns` operativo)
 
-**Stato (pre-implementazione):** **Marketing › Campagne** (`admin/src/components/campagne/CampagnePage.tsx`) **mantiene** i record in **`useState`** con **`SEEDED_CAMPAIGNS`** demo; le nuove campagne dal builder **non** persistono dopo reload e **non** toccano Supabase.
+**Stato (implementazione MVP — 2026-05):** **Marketing › Campagne** è cablato a **`public.campaigns`**: repository (`campaigns-repository.ts`), bucket **`campaign-previews`**, lista con signed URL anteprima, builder con validazione contratto e **INSERT** (incluso retry **`cid`**). KPI sulle card restano **placeholder / zero** (nessuna query aggregate su **`analytics_events`** ancora).
+
+**Pausa lavoro dichiarata:** gli **Steps 1–5** risultati chiusi in codice/documentazione; lo **Step 6** (metriche card da `analytics_events` + copy «in attesa dati», vedi CAMPAIGNS_CONTRACT §5) è **rinviato** a una futura iterazione quando ci saranno ingest dati affidabili e si preferisce un **modello con più contesto** per progettare/editing query aggregate sicure ed efficienti.
 
 **Schema già deployabile:** [`supabase/migrations/20260501000020_create_campaigns.sql`](../supabase/migrations/20260501000020_create_campaigns.sql); RLS **`authenticated`** full CRUD sulla tabella; **`anon`** non legge direttamente `campaigns` (solo bridge `resolve_campaign_id_from_cid` lato ingest/L1).
 
@@ -47,10 +49,12 @@ Per modelli **con poco contesto** e per ridurre errori:
 | **2** | **Storage creatività (E3 parziale):** bucket `campaign-previews` (o nome concordato) + policy **`authenticated`** upload/read come da [`CAMPAIGNS_CONTRACT` §6](CAMPAIGNS_CONTRACT.md) + [`supabase/README.md`](../supabase/README.md) pattern careers. Migrazione SQL **solo se** nel repo non esiste ancora il bucket/policy. Funzione helper admin: **`uploadCampaignCreative(file) -> path`** (path relativo salvato in `creative_image_path`). Se il bucket è già documentato ma non nel repo locale, aggiorna solo codice admin + README. | Upload smoke da admin o script; verifica file in bucket e path salvabile in INSERT di prova manuale. |
 | **3** | **`CampagnePage`** — **lettura**: sostituire `useState(SEEDED_CAMPAIGNS)` con fetch da repository; skeleton + error + retry (`staff-pattern`). Anteprima immagine da **signed URL** o URL pubblico in base alla policy bucket. Rimozione o riduzione **seed demo** dopo conferma (opzionale: seed una tantum tramite SQL esterno fuori migrazioni business). | Lista campagne coincide con Table Editor Supabase dopo creazione manuale test. |
 | **4** | **`NewCampaignBuilderCard` / creazione**: validazioni contratto §3; upload file→path (Step 2); **INSERT** con tutti i campi NOT NULL; gestione errore uniq `cid` (23505). Generazione **`cid`** (lunghezza/formato dentro il CHECK). Aggiorna URL copiabile coerente con il record persistito. | Nuova campagna sopravvive a reload e compare in DB; submit web con quel `cid` risolve `campaign_id` (smoke integrato facoltativo). |
-| **5** | (Opzionale) **`first_data_at` / `last_data_at`**: oggi null su insert — aggiornarli solo quando esista pipeline ingestion (Edge/cron/query su `analytics_events`) **oppure** lasciare doc TODO in `DEVELOPMENT_NOTES`; **non** fake-write da admin salvo incarico Analytics. |
-| **6** | (Opzionale) **Metriche card**: query aggregate per `campaign_id` o `cid` quando `analytics_events` è popolato; finché assenti mostrare blocchi KPI a zero / copy «in attesa dati». |
+| **5** | (Opzionale) **`first_data_at` / `last_data_at`**: oggi null su insert — aggiornarli solo quando esista pipeline ingestion (Edge/cron/query su `analytics_events`) **oppure** lasciare doc TODO in `DEVELOPMENT_NOTES`; **non** fake-write da admin salvo incarico Analytics. ***Chiuso (doc-only):*** policy backlog in **`DEVELOPMENT_NOTES.md`** § *Campagne first_data_at / last_data_at* + smoke **`SMOKE_TEST_ADMIN.md`** § **G**. |
+| **6** | (Opzionale) **Metriche card**: query aggregate per `campaign_id` o `cid` quando `analytics_events` è popolato; finché assenti mostrare blocchi KPI a zero / copy «in attesa dati». ***Rinvio (2026-05):*** non avviato; riprendere con prompt «Esegui Step 6 del prompt Campagne» quando ingest + tooling pronti. |
 
 L’operatore scrive sempre: **«Esegui Step N del prompt Campagne»** (N esplicito).
+
+**Nota progetto:** con un **modello più potente** conviene affrontare lo Step 6 in una sessione dedicata (contesto ricco sullo schema **`analytics_events`**, volumetrie attese, trade-off fra **molte piccole letture REST** sul client versus **RPC / viste Postgres** consolidate).
 
 ### Non fare (salvo incarico separato)
 
@@ -63,12 +67,15 @@ L’operatore scrive sempre: **«Esegui Step N del prompt Campagne»** (N esplic
 - Lista campagne in admin viene da **`public.campaigns`** dopo login `authenticated`.
 - Creazione dal builder crea riga DB con **`creative_image_path`** valido e **`cid`** utilizzabile nel link pubblico.
 - `pnpm build:admin` verde dopo gli step inclusi nell’implementazione dichiarata.
+- Fuori dall’MVP corrente (pausa progetto): **Step 6** metriche KPI live finché non ripreso esplicitamente.
 
 ---
 
 ## Tracking
 
-Alla chiusura: aggiorna [`docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) (E4 / A1 eventualmente), [`docs/DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md), e [`docs/SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md) con smoke dedicato alle campagne se applicabile.
+**Checkpoint 2026-05 (pausa prima Step 6):** aggiornati [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md), [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md), [`SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md) § G, [`supabase/README.md`](../supabase/README.md).
+
+Alla ripresa futura (Step 6 o ingest timeline): aggiorna di nuovo roadmap + note Dev + questo file.
 
 ---
 
