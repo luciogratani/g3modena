@@ -37,7 +37,7 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 - [x] Microcopy client-facing ripulita (rimosso linguaggio troppo tecnico).
 - [x] Sidebar ripulita (`Showcase` rimosso, sezione candidati semplificata, badge collegati ai dati).
 - [x] Pagina `Impostazioni` reale con tema `light|dark|auto` + persistenza + migrazione chiave legacy.
-- [x] Pagina **Marketing › Campagne** (`CampagnePage`) MVP locale (builder UTM/`cid`, card demo); contratto operativo [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md).
+- [x] Pagina **Marketing › Campagne** (`CampagnePage`) MVP locale (builder UTM/`cid`, card demo); contratto operativo [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md). Wiring DB: [`PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md`](PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md).
 
 ### Board candidature
 - [x] Board **parametrizzata per `citySlug` stringa** (città da config `listActiveCities`), senza union rigida solo Modena/Sassari; filtri colonna `Nuovo` e stato board aggiornati di conseguenza (`board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`).
