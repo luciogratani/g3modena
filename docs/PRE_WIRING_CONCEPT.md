@@ -71,14 +71,14 @@ Grano consigliato: **evento atomico** con tipo discriminante.
 - `funnel_attempt_id` (uuid/text nullable): valorizzato sugli eventi funnel careers per dedup e audit di `careers_abandon`.
 
 **Colonne di dettaglio “una sola semanticamente”:**
-- `dwell_seconds` (integer nullable): usato per `site_view` (permanenza pagina) o heartbeat; null se non pertinente.
+- `dwell_seconds` (integer nullable): usato per `page_view` (permanenza pagina) o heartbeat; null se non pertinente.
 - `cta_key` (text nullable): identificatore stabile del CTA (es. `hero_richiedi_incontro`); valorizzato solo se `event_type = cta_click`.
-- `form_step_index` (smallint nullable) + `form_field_key` (text nullable): per abbandono, valorizzare **solo** `form_field_key` (e opzionalmente step) sull’evento `form_careers_abandon` → **non serve** `rinuncia boolean` separato: l’evento *è* la rinuncia.
-- `city_slug` (text nullable): per **conversione** candidatura o contesto geografico scelto; su `form_careers_submit` valorizzato = “conversione con città X”. **Non serve** `conversione boolean` separata se `event_type = form_careers_submit` implica conversione funnel careers.
+- `form_step_index` (smallint nullable) + `form_field_key` (text nullable): per abbandono, valorizzare **solo** `form_field_key` (e opzionalmente step) sull’evento `careers_abandon` → **non serve** `rinuncia boolean` separato: l’evento *è* la rinuncia.
+- `city_slug` (text nullable): per **conversione** candidatura o contesto geografico scelto; su `careers_submit` valorizzato = “conversione con città X”. **Non serve** `conversione boolean` separata se `event_type = careers_submit` implica conversione funnel careers.
 
-**Conversioni “per città”:** aggregare in query: `WHERE event_type = 'form_careers_submit' GROUP BY city_slug`.
+**Conversioni “per città”:** aggregare in query: `WHERE event_type = 'careers_submit' GROUP BY city_slug`.
 
-**Rinunce durante compilazione:** evento singolo `form_careers_abandon` con `form_field_key` = ultimo campo “noto” prima di uscire (o step) — richiede instrumentazione JS (beforeunload / visibility / step change) — **da definire precisione** (solo step esplicito vs best-effort).
+**Rinunce durante compilazione:** evento singolo `careers_abandon` con `form_field_key` = ultimo campo “noto” prima di uscire (o step) — richiede instrumentazione JS (beforeunload / visibility / step change) — **da definire precisione** (solo step esplicito vs best-effort).
 
 ### Città di origine traffico / geo
 

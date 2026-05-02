@@ -6,7 +6,7 @@ Documento tecnico per chat/agent durante:
 - sviluppo sezione admin e passaggio da dati locali a backend condiviso
 - passaggio da contenuti hardcoded / locali a CMS lato `web`
 
-**Contenuto:** in fondo trovi il **piano dati admin (pre-wiring)**. Il wiring effettivo su Supabase inizia **dopo** il completamento dell’**ultima vista** prevista in admin (scope UI da definire in quella milestone); questo file descrive cosa succederà a livello dati, non implementa ancora gli adapter.
+**Contenuto:** in fondo resta il **piano dati admin** per le aree ancora su persistenza locale o non production-safe. **Aggiornamento 2026-05:** molte integrazioni Supabase sono **già attive** (città REST anon, receiver candidature/contatti via Edge, board `candidates`, inbox `contact_messages`, Auth admin, storage allegati careers). Questo file descrive ancora **contratti e gap** (es. contenuti sito da `site-content` vs DB CMS, camerieri/campagne locali, residuo E3 media CMS).
 
 ---
 

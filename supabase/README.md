@@ -65,6 +65,11 @@ supabase db push
 > fissare un `project_id` specifico. Dopo `supabase link --project-ref <ref>`
 > il file viene rigenerato in locale.
 
+### Verifica rapida remoto (CLI / Dashboard)
+
+- **Migrazioni applicate:** Dashboard → **Database** → storico migrazioni del progetto *oppure*, con progetto linkato, `supabase migration list` (confronto elenco locale vs remoto). In **SQL Editor**: `select version from supabase_migrations.schema_migrations order by version;` — deve comparire tra le versioni applicate il prefisso **`20260501000150`** (e tutte le migrazioni precedenti in `supabase/migrations/`).
+- **Functions deployate:** Dashboard → **Edge Functions** (`career-submissions`, `contact-submissions`) *oppure* `supabase functions list`. Un `curl` di smoke come sotto che **non** restituisce **404** sul path della function indica che il deploy esiste (401 senza header anon è normale sul gateway).
+
 ### Deploy receiver candidature (L1)
 
 Il receiver `career-submissions` è una Supabase Edge Function server-side:

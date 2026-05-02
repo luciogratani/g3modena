@@ -14,13 +14,14 @@ La sezione **«Contesto operativo»** in fondo è materiale di riferimento per l
 
 Già applicato nel repo (non ripetere lo stesso lavoro salvo regressioni):
 
+- **2026-05-02 (ops):** Vercel a due progetti con `VITE_*` operative (analytics ingest opzionale); Functions L1/L2 confermate deployed; **`cities`** popolata sul DB remoto. Dettaglio e checklist verifiche → § *Contesto operativo* sotto.
 - **`docs/PROMPT_CHAT_E4_BOARD_CANDIDATES_SUPABASE.md`** — marcato implementato; uso storico/decisioni chiuse.
 - **`docs/PROMPT_CHAT_BOARD_PROFILE_PHOTO_STORAGE.md`** — intestazione aggiornata (`applyCareersPhotoSignedUrls` / `candidates-repository.ts`); sintomo storico.
 - **`docs/DEVELOPMENT_NOTES.md`** — Auth vs E5/L4; inventario filtri Nuovo con suffisso `{slug-sede}`; Cities legacy policy riscritta (focus Camerieri + Config › Sedi).
 - **`supabase/README.md`** — checklist migrazioni estesa (00080, 00140, 00150); blocco evolutivo al posto della checklist E2→E5 lineare.
 - **`docs/PRE_WIRING_CONCEPT.md`** — indice aggiornato (Auth #0, Scartati/A4 #3).
 - **`docs/IMPLEMENTATION_ROADMAP.md`** — nota su `mockCandidates.ts` (tipi/DISCARD in bundle vs array `CANDIDATES` solo test).
-- **`docs/DB_CMS_INTEGRATION.md`** — REST anon cities (`application-office-cities.ts`) vs assenza `@supabase/supabase-js` in `web`.
+- **`docs/DB_CMS_INTEGRATION.md`** — premessa aggiornata (2026-05): integrazioni già cablate vs gap CMS contenuti pubblico / CRM locale; REST anon cities e niente `@supabase/supabase-js` in `web`.
 
 **Chat A resta utile** per: residui «da implementare», `admin:candidates:board:v1` citato come attuale, altri `PROMPT_CHAT_*` ancora «aperti», drift futuro codice↔doc.
 
@@ -121,14 +122,20 @@ Integrare nell’analisi operativa; validare sul codice solo se serve.
 ### Frontend (es. Vercel)
 
 - Le variabili **`VITE_*`** sono inlined in **build**: definiti nel progetto di deploy prima del build; dopo modifica env serve **redeploy**.
-- Due progetti distinti sono probabili (**`web`** e **`admin`**), con root directory monorepo e build pnpm workspace coerente.
+- Due progetti distinti (**`web`** e **`admin`**): root monorepo + build/script pnpm workspace; in ambienti tipo quello interno sono già configurati con tutte le `VITE_*` necessarie salvo ingest analytics (`VITE_ANALYTICS_INGEST_URL`) finché non serve l’endpoint remoto.
 - **Web** (minimo): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_CAREER_ENDPOINT`, `VITE_CONTACT_ENDPOINT`, `VITE_CAREER_SUBMIT_FORMAT` (di norma `multipart`). `VITE_ANALYTICS_INGEST_URL` opzionale.
 - **Admin** (minimo): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`; opzionali come in `admin/.env.example`.
 - Il gateway delle Edge Functions richiede **`Authorization: Bearer <anon>`** e **`apikey`**: il web usa `web/lib/supabase-edge-invoke-headers.ts`.
 
+### Verifiche Supabase rapide
+
+- **Edge Functions deployed:** Dashboard → **Edge Functions** e controlla che ci siano `career-submissions` e `contact-submissions`; oppure `supabase functions list` con progetto linkato. Un `curl`/`POST` come in [`supabase/README.md`](../supabase/README.md) che non riceve **404** sul path della function conferma che l’artefatto è presente (401 senza anon key è attendibile sul gateway).
+- **Migrazioni fino alla board (00150):** con CLI `supabase migration list --linked` le righe remote devono includere **`20260501000150_e4_candidates_admin_workflow`** (e le precedenti nello stesso ordine logico); in alternativa nel **SQL Editor** del progetto: `select version from supabase_migrations.schema_migrations order by version;` deve elencare le versioni applicate incluso il prefisso `20260501000150`.
+
 ### Supabase Auth (admin)
 
-- In **Authentication → URL configuration** aggiungere **Redirect URL** (e **Site URL** coerente) per il dominio produzione dell’admin.
+- In **Authentication → URL configuration** (Dashboard Supabase) imposta **Site URL** sull’URL canonico dove gira il gestionale (es. `https://admin.tuodominio.tld`).
+- Aggiungi in **Redirect URLs** tutti gli URL da cui dopo login/email recovery Supabase deve poter tornare nella SPA (**include** dominio prod admin, **localhost** con porta usata in dev). Senza questo, dopo `signInWithPassword`/link magic e redirect verso `/` l’SDK può essere bloccato o finire sul Site URL sbagliato → login rotto solo in alcuni flussi redirect.
 
 ### Storage candidature
 

@@ -281,6 +281,12 @@ Priorita consigliata: `CandidatiBoard` -> `CandidateDetailSheet` -> `CmsWebEdito
 - Ambiente locale web riallineato: creato `web/.env` con endpoint function Supabase (`career-submissions`, `contact-submissions`) + `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
 - Fix gateway Functions **401**: il browser deve inviare `Authorization: Bearer <anon>` + `apikey` (`web/lib/supabase-edge-invoke-headers.ts` usato da careers e contact).
 
+### Aggiornamento deploy (2026-05-02)
+
+- **Vercel:** due progetti (**`web`** + **`admin`**) con env `VITE_*` allineate al minimo operativo; **senza** `VITE_ANALYTICS_INGEST_URL` finché non si attiva ingest remoto (resta solo buffer locale sul sito — vedi roadmap C4).
+- **Supabase Functions:** già distribuite **`career-submissions`** e **`contact-submissions`** sul progetto collegato; verifica rapida → [`docs/PROMPT_CHAT_MAIN_LAUNCH_READINESS.md`](PROMPT_CHAT_MAIN_LAUNCH_READINESS.md) § *Contesto operativo* › *Verifiche Supabase rapide*.
+- **`public.cities`:** populate in ambiente destinato al go-live con slug coerenti con form pubblico ed admin (**Config › Sedi**).
+
 ---
 
 ## Checklist rapida per nuove chat

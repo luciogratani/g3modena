@@ -8,6 +8,8 @@ Copia il blocco **«Prompt (copia da qui)»** in una nuova chat Cursor solo se s
 
 ## Prompt (copia da qui)
 
+> **Archivio (pre-L5):** il paragrafo seguente descriveva la board **prima** della migrazione. Nel codice attuale la sorgente è **`public.candidates`** via `candidates-repository.ts` e `useCandidateBoardState`; **`admin:candidates:board:v1`** non è più usato; da `mockCandidates.ts` restano tipi/cataloghi, non l’array `CANDIDATES` nel percorso online.
+
 Sei nel monorepo **g3modena**. **Config › Sedi** e il form web leggono **`public.cities`**. **L1** inserisce righe **`public.candidates`** dal sito (`pipeline_stage = 'nuovo'`, FK `city_id`). In admin la kanban **`CandidatiBoard`** + hook **`useCandidateBoardState`** usano ancora **`admin/src/data/mockCandidates.ts`** come dataset e **`admin:candidates:board:v1`** (`localStorage`) per colonne ordinate + metadata ricche (`board-utils.ts`, versione persistenza **v3** con sub-lane formazione in `byId`).
 
 ### Obiettivo
