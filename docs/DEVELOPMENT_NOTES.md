@@ -169,11 +169,11 @@ Integrazioni cross-modulo:
 - **Filters policy**: filtri `Nuovo` persistenti per citta; filtro nascosto => filtro disattivato/reset.
 - **Discard policy**: `scartati` è stato strutturato (catalogo ragioni v1 chiuso + nota opzionale). Il move avviene solo dopo conferma del dialog (parità con `colloquio`/`postpone`). Uscire dalla colonna (`Ripristina`, archivio, drop su altra colonna) ripulisce automaticamente `discardReasonKey|Note|At|ReturnStatus` via `clearDiscardMetadataIfNeeded`. `Promuovi a Cameriere` non è esposto in `scartati`.
 - **Contract policy**: nuove key CMS prima in `@g3/content-contract`, poi propagate ad admin/web.
-- **Auth policy**: fuori scope finche non parte lo step sicurezza.
+- **Auth policy** (2026-05-01, **E5** / **L4** baseline): senza Supabase configurato (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) o senza sessione valida resta **`AdminLoginPage`**; dati operativi dietro RLS **`authenticated`** (`admin/src/App.tsx`). Residuo: hardening deploy (HTTPS, cookie, URL non indicizzato) checklist pre-prod.
 - **Campagne status policy**: usare `first_data_at` (primo `page_view` con `cid`) e `last_data_at` (ultimo evento attribuito) come uniche fonti canoniche.
 - **Campagne query policy**: derivare `No dati|Attiva|Disattiva` a runtime (finestra 5 giorni) senza persistere `status` in colonna nella v1.
 - **Campagne identity policy**: `campaigns.id` (uuid) è l’ID interno canonico; `cid` resta token corto pubblico per link tracking.
-- **Cities legacy policy**: gli slug seed `modena` / `sassari` non sono eliminabili da UI finché board/camerieri dipendono da compatibilità locale; disattivazione consentita.
+- **Cities legacy policy**: gli slug `modena` / `sassari` non sono eliminabili da UI (**Config › Sedi**, regole dedicate) mentre **Camerieri** restano su storage locale bucketato solo su quegli slug e per coerenza con dati operativi legati alle sedi; disattivazione consentita.
 - **Waiters sidebar policy**: la navigazione CRM Camerieri espone solo slug presenti in `SUPPORTED_WAITER_CITY_SLUGS` finché `admin:camerieri:crm:v1` resta bucketato su `modena|sassari`.
 
 ---
@@ -205,8 +205,8 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 | Dominio | Chiave / evento | Destinazione prevista |
 |--------|------------------|-----------------------|
 | Board candidati | ~~`admin:candidates:board:v1`~~ (legacy, rimosso 2026-05-01) | `candidates` (`pipeline_stage` + `kanban_rank` + `admin_workflow jsonb`, gate **L5** ✓) |
-| Filtri colonna `Nuovo` | `admin:candidates:new-column-filters:state:v1:{modena|sassari}` | Restano preferenze locali salvo richiesta sync |
-| Visibilità filtri `Nuovo` | `admin:candidates:new-column-filters:visibility:v1:{modena|sassari}` | Restano preferenze locali |
+| Filtri colonna `Nuovo` | `admin:candidates:new-column-filters:state:v1:{slug-sede}` (es. `:modena`, una chiave per `boardCity`) | Restano preferenze locali salvo richiesta sync |
+| Visibilità filtri `Nuovo` | `admin:candidates:new-column-filters:visibility:v1:{slug-sede}` | Restano preferenze locali |
 | Recap giornaliero | `admin:candidates:daily-recap:dismissed-on` | Preferenza locale, non DB v1 |
 | Messaggi contatti | ~~`admin:contact-messages:v1`~~ (legacy); lista ora da **`contact_messages`** | `contact_messages` (L2 ✓) |
 | Camerieri CRM | `admin:camerieri:crm:v1` + evento `admin:camerieri:updated` | `staff` |

@@ -1,8 +1,8 @@
 # Prompt per chat dedicata — **E4 / L5: board candidati su Supabase**
 
-**Stato:** da implementare. Completata prima **E4 cities** + receiver **L1** + **`public.cities`** popolato dove serve.
+**Stato:** implementato (2026-05-01). Board su **`public.candidates`** (`admin_workflow` + `kanban_rank`), repository `candidates-repository.ts`, hook **`useCandidateBoardState`** senza **`admin:candidates:board:v1`**; gate **`L5`** in roadmap. Il testo sotto è **contesto storico** (specifica pre-implementazione utile per revisioni / onboarding).
 
-Copia il blocco **«Prompt (copia da qui)»** in una nuova chat Cursor.
+Copia il blocco **«Prompt (copia da qui)»** in una nuova chat Cursor solo se serve ripercorrere le decisioni di design già chiuse.
 
 ---
 

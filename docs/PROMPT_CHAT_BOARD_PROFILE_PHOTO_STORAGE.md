@@ -1,10 +1,12 @@
 # Prompt per chat dedicata — **Foto profilo board vs Storage privato**
 
-**Contesto:** submit careers (**L1** / Edge **`career-submissions`**) ok: foto su bucket **`careers-photos`**, colonna **`public.candidates.profile_photo_path`** valorizzata. In admin la kanban non mostra l’avatar.
+**Stato nel repo:** il caricamento liste board applica **`createSignedUrl`** su path bucket privato tramite **`applyCareersPhotoSignedUrls`** in `admin/src/components/candidati-board/candidates-repository.ts` (dopo `rowToCandidate`), bucket **`careers-photos`**.
 
-**Ipotesi principale:** il DB salva una **chiave oggetto** (path nel bucket), non un URL pubblico; il bucket è **privato** (`20260501000140_e3_storage_careers.sql`). `<img src={...}>` con quel path fallisce — serve **`storage.from(...).createSignedUrl`** (o rendere pubblico il bucket, sconsigliato se si vuole restare privati).
+**Contesto storico:** submit careers (**L1**) ok (`profile_photo_path` valorizzata) ma prima della firma admin la kanban non mostrava l’avatar (path usata come `src` HTML).
 
-Copia il blocco **«Prompt (copia da qui)»** in una nuova chat Cursor.
+**Diagnosi d’archivio:** path oggetto vs URL pubblico su bucket **`careers-photos`** privato (`20260501000140_e3_storage_careers.sql`); **`storage.from(...).createSignedUrl`** è il fix coerente (vs bucket pubblico, sconsigliato).
+
+Copia il blocco **«Prompt (copia da qui)»** in una nuova chat Cursor solo per debug regressione (se le foto ricompaiono rotte o non firmate).
 
 ---
 

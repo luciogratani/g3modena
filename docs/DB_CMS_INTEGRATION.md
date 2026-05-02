@@ -23,9 +23,10 @@ Documento tecnico per chat/agent durante:
 - Form pubblici usano endpoint HTTP esterni:
   - `VITE_CONTACT_ENDPOINT`
   - `VITE_CAREER_ENDPOINT`
-- Al momento `web` **non** usa client Supabase.
+- Lo step **«Scegli la sede»** del form candidature legge **`public.cities`** via **REST Postgres** anon (`fetch` verso `{VITE_SUPABASE_URL}/rest/v1/cities`, header `apikey` + `Authorization` bearer anon) — vedi `web/data/application-office-cities.ts`; **non** c’è dipendenza da `@supabase/supabase-js` nel package `web`.
+- Al momento `web` **non** usa il **client JS** `@supabase/supabase-js`; usa comunque progetto/host Supabase (REST + Functions) quando le env sono configurate.
 
-Nota: nel monorepo esiste `admin/src/lib/supabase.ts` con env Supabase (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`), ma non implica che `web` sia già collegata.
+Nota: `admin/src/lib/supabase.ts` usa lo stesso host con sessione **`authenticated`**; la `web` resta SPA separata senza quel client ma può parlare allo stesso backend in anonimo dove previsto da RLS.
 
 ---
 

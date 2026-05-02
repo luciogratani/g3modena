@@ -9,10 +9,10 @@ Riferimenti incrociati: [`DB_CMS_INTEGRATION.md`](DB_CMS_INTEGRATION.md) (layer 
 
 | # | Tema | Stato concept |
 |---|------|----------------|
-| 0 | **Pagina Auth admin** | Milestone esplicita — UI standard allineata al gestionale |
+| 0 | **Pagina Auth admin** | **Implementato** (E5 baseline): login Supabase + guard — vedi `IMPLEMENTATION_ROADMAP.md`, `supabase/README.md` § Auth |
 | 1 | Campagne (sidebar, UTM, estensioni candidato) | Policy 3 + UTM congelati |
 | 2 | Overview + tabella analytics | `event_type` v1 congelato |
-| 3 | Quinta colonna board | **Placeholder** — da integrare con appunti |
+| 3 | Quinta colonna board (**Scartati** / discard strutturato) | **Implementato** (A4 + migrazione `0080` + UI) — stato operativo in `DEVELOPMENT_NOTES.md` *(Discard policy)* e roadmap **A4** |
 | 4 | Viste candidati realmente per città | Chiaro a livello prodotto |
 | 5–6 | Città gestite + step form | **Cuore:** tabella `cities` |
 | 7 | RLS / ruoli | Bozza policy |

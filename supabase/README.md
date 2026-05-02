@@ -156,7 +156,7 @@ curl -i -X POST "$VITE_CONTACT_ENDPOINT" \
 
 Check consigliati (manuali, post-`db push`):
 
-1. verificare ordine migration applicato (`20260501000000` → `20260501000130`);
+1. verificare che le migration siano applicate **in ordine numerico** fino all’ultima presente in `supabase/migrations/`: tabelle base **`00000`–`00070`**, A4 **scartati** **`00080`**, RLS/policy **`00090`–`00130`**, storage L1 (**`00140`**), board admin **L5** (**`00150`**);
 2. eseguire smoke allow/deny dal file:
    - `supabase/sql/e2c_rls_smoke_allow_deny.sql`
 3. verificare presenza policy da `pg_policies` per tutte le tabelle target;
@@ -254,16 +254,19 @@ allineate qui (fonte autoritativa: i contratti dedicati):
 5. **`cms_sections`** — UNIQUE composito gestisce `tenant_schema` NULL via
    `NULLS NOT DISTINCT` (Postgres 15+).
 
-## Prossimi step (E2 → E5)
+## Stato evolutivo (snapshot)
 
-1. **E2 completato (E2b baseline)**: RLS + policy + grants minimi implementati
-   in `20260501000090`…`20260501000130`.
-2. **E3 — Storage**: bucket candidature (`careers-photos`, `careers-cv`) già
-   creati per L1; restano media CMS/campagne.
-3. **E4 — Adapter admin**: `contact_messages` (L2), `cities` e **board `candidates`**
-   (gate **L5**, migrazione `0150` con `admin_workflow jsonb` + `kanban_rank numeric`)
-   sono collegati a Supabase; restano staff, campaigns e CMS dove applicabile.
-4. **E5 — Auth + guard route**.
+1. **E2 completato (E2b baseline)**: RLS + policy + grants minimi in
+   `20260501000090`…`20260501000130`.
+2. **E5 completato (baseline)**: Supabase Auth + schermata login / guard sulle route
+   admin — vedi `docs/IMPLEMENTATION_ROADMAP.md` § **E5** e `docs/DEVELOPMENT_NOTES.md` (**Auth policy**).
+3. **E3 — Storage**: bucket **`careers-photos`** / **`careers-cv`** (`20260501000140`) per **L1**;
+   residuo progettuale = media CMS/campagne (vedi **E3** roadmap).
+4. **E4 — Adapter admin (residuo)**: già cablati `contact_messages`, `cities`,
+   board **`candidates`** (**L5**, `20260501000150`); da fare dove applicabile:
+   **staff** (Camerieri), **campaigns**, **CMS** lettura/scrittura lato contenuti.
+5. **L3 / web runtime**: strategia contenuti pubblici (statico vs DB production-safe);
+   vedi gate **L3** in `docs/IMPLEMENTATION_ROADMAP.md`.
 
 ## RLS matrix v1 (E2b)
 
