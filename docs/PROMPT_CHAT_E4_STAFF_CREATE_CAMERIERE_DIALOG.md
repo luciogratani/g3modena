@@ -1,6 +1,6 @@
 # Prompt — Completare **Crea Cameriere** (`CreateCameriereDialog`)
 
-**Stato (post-implementazione, 2026-05-03):** `CreateCameriereDialog` è **operativo** (form react-hook-form + zod, tag multi-selezione, submit **`upsertStaff`** senza `sourceCandidateId`, **`dispatchStaffListInvalidated()`**, toast **sonner** + `<Toaster />` in `admin/src/main.tsx`). Lo step **5** (aria aggiuntiva / estrazione validazione + test Vitest dedicati) resta **opzionale**.
+**Stato (post-implementazione):** `CreateCameriereDialog` è **operativo** (form react-hook-form + zod, tag multi-selezione, **`upsertStaff`** senza `sourceCandidateId`, **`dispatchStaffListInvalidated()`**, toast **sonner** + `<Toaster />` in `admin/src/main.tsx`). **Foto profilo opzionale** dal dialog dopo migrazione Storage **`00170`** e cablaggio repository/UI: vedere **`§ Evoluzione — foto profilo dal dialog`** più sotto e [`PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md`](PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md). Lo step **5 originale dialog** (aria aggiuntiva / estrazione validazione + test Vitest dedicati) resta **opzionale**.
 
 **Storico (pre-implementazione):** la creazione da CRM passava solo dalla **promozione da board** (`staff-promotion.ts` → `upsertStaff`). Il repository supporta ancora INSERT senza candidato nel ramo **`upsertStaff`**.
 
@@ -24,7 +24,7 @@ Sei nel monorepo **g3modena** (`admin/`). Implementa **`CreateCameriereDialog`**
 - **`CameriereCreateInput`**: `city` (slug **`CandidateCitySlug`**, sulla pagina Camerieri è già noto come **`CamerieriPage` prop `city`**), `firstName`, `lastName` obbligatori; email/phone/tag opzionali; **`sourceCandidateId` omesso** per creazione manuale.
 - **`upsertStaff`**: quando non c’è `source_candidate_id`, esegue **solo INSERT**; errori FK/constraint già mappati in repository.
 - **Tag:** ammessi solo `automunito`, `esperienza`, `multilingue`, `fuori_sede` (`CameriereTag` + CHECK DB).
-- **Avatar foto (opzionale MVP):** se non fai upload in questo task, **`avatarUrl` omesso**. Se lo includi: niente URL firmati in colonna (`staffAvatarUrlToPersistencePath`) — eventualmente solo path bucket come per promozioni o fase successiva dedicata allo storage staff.
+- **Avatar foto (opzionale):** implementazione separata (bucket **`staff-crm-avatars`** + prefisso path **`crm-staff/`** + dialog): vedere [`PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md`](PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md).
 - Dopo INSERT riuscito: **`dispatchStaffListInvalidated()`** da **`staff-events.ts`** così `useCamerieri` ricarica.
 
 ### Step suggeriti
@@ -41,7 +41,7 @@ Sei nel monorepo **g3modena** (`admin/`). Implementa **`CreateCameriereDialog`**
 
 - Modificare **`mockCandidates`** o board per questo flusso.
 - **`upsert`** con `sourceCandidateId`: è competenza della promozione board.
-- Upload foto obbligatorio se non sei pronto su path/storage — lascia fuori dall’MVP dialog.
+- Caricare **nuove** foto CRM dal dialog su **`careers-photos`** (uso corretto dopo promozione / path storici); upload dalla creazione CRM = bucket **`staff-crm-avatars`** + **`crm-staff/`** dopo migrazione **[`00170`](../supabase/migrations/20260501000170_e3_storage_staff_crm_avatars.sql)** — vedi [`PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md`](PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md).
 
 ### Definition of done
 
@@ -55,7 +55,21 @@ Adatto **Composer 1.5** o **2 fast** con **uno step alla volta**. Lo **Step 4** 
 
 ---
 
+## Evoluzione — foto profilo dal dialog
+
+Implementazione consegnata (**migrazione + `staff-repository` + campo file nel dialog**):
+
+| Artefatto | Nota |
+|-----------|------|
+| **Migrazione** | **`20260501000170_e3_storage_staff_crm_avatars.sql`** — bucket privato **`staff-crm-avatars`**, MIME jpeg/png/webp, 5 MB, policy **`authenticated`** su `storage.objects` (select/insert/update/delete). |
+| **Codice** | `uploadStaffCrmAvatar`, `STAFF_CRM_AVATARS_BUCKET`, **`STAFF_CRM_AVATAR_PATH_PREFIX`** = **`crm-staff/`**; **`staffApplyAvatarSignedUrls`** distingue `crm-staff/…` vs path **`careers-photos`**; **`CreateCameriereDialog`** — input opzionale, preview blob URL + cleanup revoke. |
+
+**Operatore:** `supabase db push` deve aver applicato **`00170`** prima dello smoke upload. Checklist tecnica completa + definition of done: [`PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md`](PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md). Note operative: [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (§ Camerieri, § *Aggiornamento admin — Foto profilo*), [`SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md) § E.
+
+Implementazione storica dei prompt in **step 1–5** sequenziali (questo thread / chat dedicate).
+
+---
+
 ## Tracking
 
-- [x] [`docs/DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) — sezione Camerieri (dialog + repository + smoke).
-- [x] [`docs/SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md) — blocco **E** (Crea Cameriere + badge stato).
+- [x] [`SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md) — blocco **E** (Crea Cameriere con/senza foto, badge stato, prerequisito **`00170`** per upload foto).

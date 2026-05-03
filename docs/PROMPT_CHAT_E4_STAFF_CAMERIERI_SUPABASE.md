@@ -6,7 +6,7 @@
 
 **Storico (pre-implementazione):** il CRM persisteva solo su `localStorage` bucketato Modena/Sassari; la UI non usava ancora `public.staff`.
 
-**Quando usare questa chat:** evoluzioni su staff diversa dal primo wiring (test Vitest dedicati, policy promozione vs delete, note strutturate in archivio). **Dialog «Crea Cameriere»** (form + INSERT senza candidato): prompt dedicato [`PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md`](PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md).
+**Quando usare questa chat:** evoluzioni su staff diverse dal primo wiring (test Vitest dedicati, policy promozione vs delete, note strutturate in archivio). **Dialog «Crea Cameriere»** (form + INSERT senza candidato): [`PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md`](PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md). **Upload foto profilo CRM** sul dialog (`staff-crm-avatars`): [`PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md`](PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md).
 
 **Riferimenti da leggere prima:**  
 [`docs/IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md) § E4 (residuo camerieri), [`docs/DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) § Camerieri + inventario `admin:camerieri:crm:v1`, [`docs/DB_CMS_INTEGRATION.md`](DB_CMS_INTEGRATION.md) § staff, [`supabase/migrations/20260501000040_create_staff.sql`](../supabase/migrations/20260501000040_create_staff.sql), [`supabase/README.md`](../supabase/README.md) matrice RLS.

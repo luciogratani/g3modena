@@ -88,15 +88,15 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 - [x] **Board:** parametrizzazione per **`citySlug: string`** (`CandidatiBoard`, `useCandidateBoardState`, `useNewColumnFilters`, `board-utils`, `KanbanColumn`). Etichetta città in card: `getCandidateCityLabel()` in `candidate-utils.ts` (slug generico → label leggibile).
 - [x] **Camerieri:** voci sidebar da **`activeCities`** (`listActiveCities`), come Candidati; etichette `displayName` o fallback slug; redirect dashboard se slug non più tra le sedi attive.
 
-### Camerieri CRM su `public.staff` (E4, 2026-05-02; agg. creazione CRM + toggle stato 2026-05-03)
+### Camerieri CRM su `public.staff` (E4, 2026-05-02; agg. creazione CRM + toggle stato 2026-05-03; foto CRM dopo migrazione **00170**)
 
-- [x] **Sorgente dati:** `admin/src/components/camerieri/staff-repository.ts` — `listByCitySlug`, `upsertStaff` (idempotenza `source_candidate_id`), **`updateStaffActive`** (solo `is_active`, filtrato per `city_id` della sede corrente), mapping ↔ `Cameriere`, lookup `city_id` via `loadCities()`; foto con bucket `careers-photos` come i candidati.
+- [x] **Sorgente dati:** `admin/src/components/camerieri/staff-repository.ts` — `listByCitySlug`, `upsertStaff` (idempotenza `source_candidate_id`), **`updateStaffActive`** (solo `is_active`, filtrato per `city_id` della sede corrente), mapping ↔ `Cameriere`, lookup `city_id` via `loadCities()`; **`avatar_path`** — promozione board → bucket **`careers-photos`**; creazione/editing CRM dal dialog (**`uploadStaffCrmAvatar`**) → bucket privato **`staff-crm-avatars`** con prefisso path fisso **`crm-staff/`**; **`staffApplyAvatarSignedUrls`** usa il bucket corretto in base al prefisso (signed URL tabella lista).
 - [x] **UI lettura:** `useCamerieri` (loading/error/reload), evento **`admin:camerieri-staff:list-invalidate`**, listener anche su `admin:cities:updated`, focus, storage.
 - [x] **UI scrittura CRM:** badge colonna **Stato** in `CamerieriTable` come **pulsante** (stessa resa visiva del badge) → `updateStaffActive` + `dispatchStaffListInvalidated`; errori utente con **sonner** `toast.error` (Toaster in `admin/src/main.tsx`).
 - [x] **Migrazione legacy:** `migrate-local-camerieri-to-staff.ts` + primo run dopo login in `App.tsx`; marker **`admin:camerieri:v1-local-drained-at`**; chiave storica **`admin:camerieri:crm:v1`** solo per import one-shot (JSDoc nel file).
 - [x] **Promozione:** `staff-promotion.ts` (`upsertStaff` + mapper con `profilePhotoStoragePath`). Dopo promozione **riuscita**, `useCandidateBoardState` archivia il candidato (stesso percorso del menu «Archivia» → sync `pipeline_stage`).
 - [x] **Tipi:** `Cameriere.city` = **`CandidateCitySlug`** (sedie dinamiche).
-- [x] **`CreateCameriereDialog`:** form completo (nome/cognome, email/telefono, tag, attivo) → **`upsertStaff`** senza `sourceCandidateId` + toast successo + invalidazione lista. Dipendenza **sonner** per toast. Prompt / storico: [`PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md`](PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md).
+- [x] **`CreateCameriereDialog`:** form completo (nome/cognome, email/telefono, tag, attivo) + **foto profilo opzionale** (`URL.createObjectURL` / revoke in cleanup); submit → **`upsertStaff`** senza `sourceCandidateId`; con file allegato **`uploadStaffCrmAvatar`** prima, poi **`upsertStaff`** con `avatarUrl` = path **`crm-staff/…`**; toast **sonner** (successo / errore upload) + invalidazione lista. Prompt dialog: [`PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md`](PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md); storage CRM: [`PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md`](PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md).
 
 #### Moduli (`admin/src/components/camerieri/`)
 
@@ -111,9 +111,11 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 
 #### Smoke manuale (Camerieri)
 
+- [ ] Prerequisito ambiente remoti: dopo `supabase db push`, migrazione applicata **`20260501000170`** (`staff-crm-avatars`) così upload foto CRM non fallisce — vedi [`supabase/README.md`](../supabase/README.md) § Storage `staff-crm-avatars`.
 - [ ] Camerieri: almeno **due** sedi attive in sidebar.
 - [ ] Tabella CRM vs Supabase **`staff`**; ricerca e filtri.
 - [ ] **Crea Cameriere:** dialog valido → riga `staff` con `source_candidate_id` **null**; lista si aggiorna senza F5.
+- [ ] **Crea Cameriere con foto:** stesso flow con immagine JPG/PNG/WebP ≤ 5 MB → **`avatar_path`** in DB inizia con **`crm-staff/`**, file nel bucket **`staff-crm-avatars`** (Dashboard Storage); dopo **F5** o invalidazione lista, anteprima avatar in tabella tramite signed URL coerente.
 - [ ] **Badge Stato:** click attiva/disattiva → colonna `is_active` in DB e filtri lista coerenti.
 - [ ] `Promuovi a Cameriere`: riga `staff` + candidato in **Archivio** dopo reload.
 
@@ -259,6 +261,11 @@ Priorita consigliata: `CandidatiBoard` -> `CandidateDetailSheet` -> `CmsWebEdito
 - **`CreateCameriereDialog`:** creazione manuale CRM (vedi [`PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md`](PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md)).
 - **`updateStaffActive`** + badge **Stato** cliccabile in tabella; toast **sonner** (`admin/package.json`, `admin/src/main.tsx`).
 
+### Aggiornamento admin — Foto profilo “Crea Cameriere” (Storage **00170**)
+
+- Migrazione [`20260501000170_e3_storage_staff_crm_avatars.sql`](../supabase/migrations/20260501000170_e3_storage_staff_crm_avatars.sql): bucket **`staff-crm-avatars`** (privato), policy **`authenticated`** CRUD su `storage.objects` come **`campaign-previews`**.
+- Repository: **`uploadStaffCrmAvatar`**, **`STAFF_CRM_AVATARS_BUCKET`**, **`STAFF_CRM_AVATAR_PATH_PREFIX`** (`crm-staff/`), routing signed URL in **`staffApplyAvatarSignedUrls`**. Dettaglio e post-deploy checklist: [`PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md`](PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md).
+
 ### Aggiornamento deploy (2026-05-02)
 
 - **Vercel:** due progetti (**`web`** + **`admin`**) con env `VITE_*` allineate al minimo operativo; **senza** `VITE_ANALYTICS_INGEST_URL` finché non si attiva ingest remoto (resta solo buffer locale sul sito — vedi roadmap C4).
@@ -273,5 +280,5 @@ Priorita consigliata: `CandidatiBoard` -> `CandidateDetailSheet` -> `CmsWebEdito
 2. Eseguire `pnpm test:board`.
 3. Se tocchi CMS: verificare allineamento con `@g3/content-contract`.
 4. Se tocchi board: smoke test su DnD, dialog workflow, recap, filtri, persistenza.
-5. Se tocchi Camerieri / `staff` o promozione: smoke su `pnpm build:admin`, lista CRM vs Supabase **`staff`**, **Crea Cameriere**, toggle **Stato** in tabella, promozione → archivio candidato (vedi § Camerieri e [`SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md) § E).
+5. Se tocchi Camerieri / `staff` o promozione: smoke su `pnpm build:admin`, lista CRM vs Supabase **`staff`**, **Crea Cameriere** (con e senza foto se **`00170`** è applicato), toggle **Stato** in tabella, promozione → archivio candidato (vedi § Camerieri e [`SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md) § E).
 6. Se introduci fetch remoto: passare sempre da adapter/normalizzazione con fallback.

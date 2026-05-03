@@ -35,7 +35,8 @@ supabase/
     ├── 20260501000130_e2b_hardening_grants_and_policy_smoke.sql
     ├── 20260501000140_e3_storage_careers.sql            bucket allegati candidature
     ├── 20260501000150_e4_candidates_admin_workflow.sql  E4/L5: admin_workflow jsonb + kanban_rank numeric
-    └── 20260501000160_e3_storage_campaign_previews.sql bucket anteprime campagne (authenticated)
+    ├── 20260501000160_e3_storage_campaign_previews.sql bucket anteprime campagne (authenticated)
+    └── 20260501000170_e3_storage_staff_crm_avatars.sql  bucket avatar staff CRM (`crm-staff/`, authenticated)
 └── functions/
     ├── contact-submissions/                             receiver form contatti
     └── career-submissions/                              receiver candidature web
@@ -68,7 +69,7 @@ supabase db push
 
 ### Verifica rapida remoto (CLI / Dashboard)
 
-- **Migrazioni applicate:** Dashboard → **Database** → storico migrazioni del progetto *oppure*, con progetto linkato, `supabase migration list` (confronto elenco locale vs remoto). In **SQL Editor**: `select version from supabase_migrations.schema_migrations order by version;` — deve comparire tra le versioni applicate il prefisso **`20260501000160`** (e tutte le migrazioni precedenti in `supabase/migrations/`).
+- **Migrazioni applicate:** Dashboard → **Database** → storico migrazioni del progetto *oppure*, con progetto linkato, `supabase migration list` (confronto elenco locale vs remoto). In **SQL Editor**: `select version from supabase_migrations.schema_migrations order by version;` — deve comparire tra le versioni applicate il prefisso **`20260501000170`** (e tutte le migrazioni precedenti in `supabase/migrations/`).
 - **Functions deployate:** Dashboard → **Edge Functions** (`career-submissions`, `contact-submissions`) *oppure* `supabase functions list`. Un `curl` di smoke come sotto che **non** restituisce **404** sul path della function indica che il deploy esiste (401 senza header anon è normale sul gateway).
 
 ### Deploy receiver candidature (L1)
@@ -162,7 +163,7 @@ curl -i -X POST "$VITE_CONTACT_ENDPOINT" \
 
 Check consigliati (manuali, post-`db push`):
 
-1. verificare che le migration siano applicate **in ordine numerico** fino all’ultima presente in `supabase/migrations/`: tabelle base **`00000`–`00070`**, A4 **scartati** **`00080`**, RLS/policy **`00090`–`00130`**, storage L1 (**`00140`**), board admin **L5** (**`00150`**), bucket anteprime campagne (**`00160`**);
+1. verificare che le migration siano applicate **in ordine numerico** fino all’ultima presente in `supabase/migrations/`: tabelle base **`00000`–`00070`**, A4 **scartati** **`00080`**, RLS/policy **`00090`–`00130`**, storage L1 (**`00140`**), board admin **L5** (**`00150`**), bucket anteprime campagne (**`00160`**), bucket avatar staff CRM (**`00170`**);
 2. eseguire smoke allow/deny dal file:
    - `supabase/sql/e2c_rls_smoke_allow_deny.sql`
 3. verificare presenza policy da `pg_policies` per tutte le tabelle target;
@@ -181,6 +182,18 @@ Smoke: con sessione Supabase Auth nell’admin, upload da codice tramite
 `uploadCampaignCreative(file)` in `admin/src/components/campagne/campaigns-repository.ts`
 → path restituito (es. `preview/<uuid>.png`) salvabile in `public.campaigns.creative_image_path`;
 in Dashboard → **Storage** verificare il file nel bucket.
+
+### Storage `staff-crm-avatars` (Camerieri / CRM)
+
+Migrazione `20260501000170_e3_storage_staff_crm_avatars.sql`: bucket **privato**,
+tipi MIME `image/jpeg`, `image/png`, `image/webp`, limite **5 MB** (allineato a
+`careers-photos` / `campaign-previews`). Ruolo **`authenticated`**: lettura/scrittura/cancellazione oggetti
+nel bucket (`select`/`insert`/`update`/`delete` su `storage.objects`).
+
+Convenzione applicativa (E4): path in `public.staff.avatar_path` con prefisso
+**`crm-staff/`** (es. `crm-staff/<uuid>.webp`) così nel codice si distinguono dai path
+**`careers-photos`** dopo promozione candidato. Upload da admin tramite helper in
+`staff-repository.ts` (`uploadStaffCrmAvatar`).
 
 ### Board admin v1 (E4/L5)
 
@@ -234,8 +247,9 @@ order by city_id, pipeline_stage;
 - **Seed di business**: nessuna città, campagna, candidato, messaggio o
   evento analytics. Anche `cities` (Modena/Sassari) resta vuota: il seed
   reale arriva via admin in E4 o via INSERT del cliente.
-- **Storage residuo**: `careers-photos` e `careers-cv` (L1, `20260501000140`) e
-  `campaign-previews` (anteprime Marketing, `20260501000160`) sono in repo;
+- **Storage residuo**: `careers-photos` e `careers-cv` (L1, `20260501000140`),
+  `campaign-previews` (anteprime Marketing, `20260501000160`) e
+  `staff-crm-avatars` (avatar staff da CRM, `20260501000170`) sono in repo;
   restano fuori `site-media` e le policy avanzate per media CMS oltre questo baseline.
 - **Funzioni Edge / triggers di business residui** (es. update di
   `first_data_at` / `last_data_at` su campaigns dagli ingest): da definire
@@ -249,7 +263,7 @@ order by city_id, pipeline_stage;
 | `cities` | `admin/src/components/cities/types.ts` (`OfficeCity`) → `id`, `slug`, `display_name`, `is_active`, `sort_order`. |
 | `campaigns` | `admin/src/components/campagne/` (`types`, `campaigns-repository.ts`, `uploadCampaignCreative` → `campaign-previews`) + `docs/CAMPAIGNS_CONTRACT.md`. |
 | `candidates` | `web/components/careers-form.tsx` payload (`buildCareerJsonPayload`) + workflow board admin (`admin/src/components/candidati-board/candidates-repository.ts`: `pipeline_stage`, `kanban_rank` numeric, `discard_*` canoniche, `admin_workflow jsonb` con notes/interview/training/postpone). |
-| `staff` | `admin/src/components/camerieri/types.ts` (`Cameriere`). |
+| `staff` | `admin/src/components/camerieri/types.ts` (`Cameriere`); `avatar_path` — promozione candidato → `careers-photos`, upload CRM → prefisso `crm-staff/` in **`staff-crm-avatars`**. |
 | `cms_sections` | `web/lib/content-adapter.ts` (`adaptSiteContent`) + `@g3/content-contract`. |
 | `contact_messages` | `admin/src/components/contact-messages/types.ts` (`ContactMessage`). |
 | `analytics_events` | `web/lib/analytics-ingest.ts` (`AnalyticsIngestEventPayload`) + contratto v1. |
@@ -280,7 +294,8 @@ allineate qui (fonte autoritativa: i contratti dedicati):
    admin — vedi `docs/IMPLEMENTATION_ROADMAP.md` § **E5** e `docs/DEVELOPMENT_NOTES.md` (**Auth policy**).
 3. **E3 — Storage**: bucket **`careers-photos`** / **`careers-cv`** (`20260501000140`) per **L1**;
    bucket **`campaign-previews`** (`20260501000160`, privato, CRUD `authenticated` su oggetti)
-   per immagini campagna; media CMS / altro restano roadmap **E3**.
+   per immagini campagna; bucket **`staff-crm-avatars`** (`20260501000170`, stesso schema policy)
+   per foto profilo caricate dal CRM (path `crm-staff/`); media CMS / altro restano roadmap **E3**.
 4. **E4 — Adapter admin (residuo)**: già cablati `contact_messages`, `cities`,
    board **`candidates`** (**L5**, `20260501000150`); da fare dove applicabile:
    **staff** (Camerieri), **campaigns**, **CMS** lettura/scrittura lato contenuti.

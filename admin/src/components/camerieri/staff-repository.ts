@@ -11,6 +11,37 @@ import type { Cameriere, CameriereCreateInput, CameriereTag } from "./types"
 
 const PROFILE_PHOTO_SIGNED_URL_TTL_SEC = 3600
 
+/** Bucket avatar caricati dal CRM (`avatar_path` con prefisso `crm-staff/`). */
+export const STAFF_CRM_AVATARS_BUCKET = "staff-crm-avatars"
+
+/** Prefisso path oggetti nel bucket sopra — distinto da allegati candidature (`careers-photos`). */
+export const STAFF_CRM_AVATAR_PATH_PREFIX = "crm-staff/"
+
+const MAX_STAFF_CRM_AVATAR_BYTES = 5 * 1024 * 1024
+
+const ALLOWED_STAFF_CRM_AVATAR_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+])
+
+function resolveStaffCrmAvatarMime(file: File): string | null {
+  const t = file.type?.toLowerCase().trim()
+  if (t && ALLOWED_STAFF_CRM_AVATAR_TYPES.has(t)) return t
+  const ext = file.name.split(".").pop()?.toLowerCase()
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg"
+  if (ext === "png") return "image/png"
+  if (ext === "webp") return "image/webp"
+  return null
+}
+
+function staffCrmAvatarExtensionFromMime(mime: string): string {
+  if (mime === "image/jpeg") return "jpg"
+  if (mime === "image/png") return "png"
+  if (mime === "image/webp") return "webp"
+  return "img"
+}
+
 /** Riga canonica letta/scritta dalla tabella `public.staff`. */
 export type StaffRow = {
   id: string
@@ -65,6 +96,32 @@ export function staffAvatarUrlToPersistencePath(raw: string | undefined): string
   return t
 }
 
+/**
+ * Carica un avatar nel bucket privato `staff-crm-avatars` (sessione authenticated).
+ * Ritorna il **path oggetto** da salvare in `avatar_path` (senza prefisso nome bucket).
+ */
+export async function uploadStaffCrmAvatar(file: File): Promise<string> {
+  const client = getSupabaseClient()
+  if (file.size > MAX_STAFF_CRM_AVATAR_BYTES) {
+    throw new Error("Immagine troppo grande (massimo 5 MB).")
+  }
+  const mime = resolveStaffCrmAvatarMime(file)
+  if (!mime) {
+    throw new Error("Formato non supportato: usa JPEG, PNG o WebP.")
+  }
+  const ext = staffCrmAvatarExtensionFromMime(mime)
+  const objectPath = `${STAFF_CRM_AVATAR_PATH_PREFIX}${crypto.randomUUID()}.${ext}`
+
+  const { error } = await client.storage.from(STAFF_CRM_AVATARS_BUCKET).upload(objectPath, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: mime,
+  })
+
+  if (error) throw new Error(error.message || "Upload avatar fallito.")
+  return objectPath
+}
+
 async function slugToCityId(slug: string): Promise<string | null> {
   const cities = await loadCities()
   return cities.find((c) => c.slug === slug)?.id ?? null
@@ -109,7 +166,10 @@ function rowToCameriere(row: StaffRow, citySlug: CandidateCitySlug): Cameriere {
   }
 }
 
-/** URL firmati per anteprima tabella quando `avatar_path` e nel bucket careers. */
+/**
+ * URL firmati per anteprima tabella: path con prefisso `crm-staff/` → `staff-crm-avatars`,
+ * altrimenti `careers-photos` (promozione candidato).
+ */
 export async function staffApplyAvatarSignedUrls(
   client: SupabaseClient,
   items: Cameriere[],
@@ -118,8 +178,11 @@ export async function staffApplyAvatarSignedUrls(
     items.map(async (item) => {
       const path = item.avatarUrl?.trim()
       if (!path || /^https?:\/\//i.test(path)) return item
+      const bucket = path.startsWith(STAFF_CRM_AVATAR_PATH_PREFIX)
+        ? STAFF_CRM_AVATARS_BUCKET
+        : CAREERS_PHOTOS_BUCKET
       const { data, error } = await client.storage
-        .from(CAREERS_PHOTOS_BUCKET)
+        .from(bucket)
         .createSignedUrl(path, PROFILE_PHOTO_SIGNED_URL_TTL_SEC)
       if (error || !data?.signedUrl) return item
       return { ...item, avatarUrl: data.signedUrl }

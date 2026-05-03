@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { type ChangeEvent, useEffect, useRef, useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { Loader2 } from "lucide-react"
@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import type { CameriereTag } from "./types"
 import { dispatchStaffListInvalidated } from "./staff-events"
-import { upsertStaff } from "./staff-repository"
+import { uploadStaffCrmAvatar, upsertStaff } from "./staff-repository"
 
 /** Allineato a `staff_email_format_check` in migrazione `20260501000040_create_staff.sql`. */
 const STAFF_EMAIL_PG_REGEX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
@@ -115,21 +115,77 @@ export function CreateCameriereDialog({ open, onOpenChange, city }: CreateCameri
     mode: "onChange",
   })
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  /** URL da `createObjectURL` da revocare; separato da `photoPreviewUrl` stato per cleanup su unmount. */
+  const photoObjectUrlRef = useRef<string | null>(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (photoObjectUrlRef.current) {
+        URL.revokeObjectURL(photoObjectUrlRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) {
+      if (photoObjectUrlRef.current) {
+        URL.revokeObjectURL(photoObjectUrlRef.current)
+        photoObjectUrlRef.current = null
+      }
+      setPhotoPreviewUrl(null)
+      setPhotoFile(null)
       form.reset(defaultValues)
       setSubmitError(null)
+      if (photoInputRef.current) photoInputRef.current.value = ""
     }
   }, [open, form])
+
+  function onAvatarFileSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const objectUrl = URL.createObjectURL(file)
+    if (photoObjectUrlRef.current) {
+      URL.revokeObjectURL(photoObjectUrlRef.current)
+    }
+    photoObjectUrlRef.current = objectUrl
+    setPhotoPreviewUrl(objectUrl)
+    setPhotoFile(file)
+    setSubmitError(null)
+  }
+
+  function clearAvatarSelection() {
+    if (photoObjectUrlRef.current) {
+      URL.revokeObjectURL(photoObjectUrlRef.current)
+      photoObjectUrlRef.current = null
+    }
+    setPhotoPreviewUrl(null)
+    setPhotoFile(null)
+    if (photoInputRef.current) photoInputRef.current.value = ""
+  }
 
   async function onSubmit(data: CreateCameriereFormParsed) {
     setSubmitError(null)
     try {
+      let avatarUrl: string | undefined
+      if (photoFile) {
+        try {
+          avatarUrl = await uploadStaffCrmAvatar(photoFile)
+        } catch (uploadErr) {
+          const uploadMsg =
+            uploadErr instanceof Error ? uploadErr.message : "Caricamento foto non riuscito."
+          toast.error(uploadMsg)
+          setSubmitError(uploadMsg)
+          return
+        }
+      }
       await upsertStaff({
         city,
         firstName: data.firstName,
         lastName: data.lastName,
+        ...(avatarUrl ? { avatarUrl } : {}),
         email: data.email || undefined,
         phone: data.phone || undefined,
         isActive: data.isActive,
@@ -138,6 +194,7 @@ export function CreateCameriereDialog({ open, onOpenChange, city }: CreateCameri
       toast.success("Cameriere creato.")
       dispatchStaffListInvalidated()
       form.reset(defaultValues)
+      clearAvatarSelection()
       onOpenChange(false)
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Creazione non riuscita.")
@@ -217,6 +274,57 @@ export function CreateCameriereDialog({ open, onOpenChange, city }: CreateCameri
                 </FormItem>
               )}
             />
+            <div className="grid gap-2">
+              <Label htmlFor="create-cameriere-avatar-trigger">Foto profilo (opzionale)</Label>
+              <input
+                ref={photoInputRef}
+                id="create-cameriere-avatar-input"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={onAvatarFileSelected}
+                aria-label="Scegli foto profilo"
+              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                <button
+                  id="create-cameriere-avatar-trigger"
+                  type="button"
+                  disabled={form.formState.isSubmitting}
+                  onClick={() => photoInputRef.current?.click()}
+                  className="relative flex h-28 w-full max-w-[11rem] shrink-0 overflow-hidden rounded-lg border bg-muted/20 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                  aria-label={photoPreviewUrl ? "Sostituisci foto profilo" : "Aggiungi foto profilo"}
+                >
+                  {photoPreviewUrl ? (
+                    <img
+                      src={photoPreviewUrl}
+                      alt=""
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex size-full items-center justify-center px-2 text-center text-xs text-muted-foreground">
+                      Clicca per aggiungere
+                    </span>
+                  )}
+                </button>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    JPEG, PNG o WebP, massimo 5 MB.
+                  </p>
+                  {photoFile ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={form.formState.isSubmitting}
+                      onClick={clearAvatarSelection}
+                      aria-label="Rimuovi foto profilo selezionata"
+                    >
+                      Rimuovi immagine
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
             <FormField
               control={form.control}
               name="tags"

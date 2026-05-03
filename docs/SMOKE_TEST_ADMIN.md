@@ -12,6 +12,7 @@ Checklist **manuale** rapida dopo deploy o prima di un rilascio. Ordine suggerit
 - [ ] **`admin/.env` / `.env.local`:** presenti `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (vedi `admin/.env.example`).
 - [ ] **`public.cities`:** nel progetto Supabase esistono almeno **due** righe **`is_active = true`** con `slug` coerenti tra loro e con eventuali prove L1/form web (Table Editor Supabase → `cities`).
 - [ ] **Account:** credenziali admin valide per il progetto Auth collegato.
+- [ ] *(Solo smoke **Crea Cameriere con foto**)* migrazione Storage **`20260501000170`** (`staff-crm-avatars`) applicata sul progetto (`supabase db push` / Dashboard migrazioni) — vedi [`supabase/README.md`](../supabase/README.md).
 
 ---
 
@@ -56,7 +57,8 @@ Checklist **manuale** rapida dopo deploy o prima di un rilascio. Ordine suggerit
 - [ ] Lista camerieri per una sede: **loading** al primo ingresso poi tabella (anche vuota) senza pannello rosso “Caricamento non riuscito”.
 - [ ] Se ci sono righe **`staff`** per quella `city_id` in Supabase, compaiono in tabella (allineamento base con Table Editor **`staff`**).
 - [ ] **Ricerca** e **filtro stato** (`Tutti` / Attivi / Non attivi): nessun errore in UI.
-- [ ] **Crea Cameriere:** dialog → invio con dati validi (nome/cognome obbligatori; email/telefono/tag opzionali) → in Table Editor **`staff`** nuova riga con **`source_candidate_id` null** per la sede selezionata; la **lista CRM si aggiorna** senza ricaricare la pagina (evento invalidazione lista).
+- [ ] **Crea Cameriere con foto:** (richiede migrazione **`20260501000170`** / bucket **`staff-crm-avatars`**) scegli immagine JPEG o PNG o WebP → invio dati validi → in Table Editor **`staff`**, **`avatar_path`** deve iniziare con **`crm-staff/`** e l’oggetto comparire nel bucket giusto in Dashboard **Storage**; ricarico lista CRM **F5** o dopo evento lista: thumbnail profilo tramite signed URL coerente.
+- [ ] **Crea Cameriere:** dialog → invio con dati validi (nome/cognome obbligatori; email/telefono/tag opzionali) senza foto → in Table Editor **`staff`** nuova riga con **`source_candidate_id` null** per la sede selezionata; la **lista CRM si aggiorna** senza ricaricare la pagina (evento invalidazione lista).
 - [ ] **Colonna Stato:** il badge **Attivo / Non attivo** è **cliccabile** (cursore pointer); un click inverte **`is_active`** in DB per quella riga (e la lista si ricarica); in caso di errore compare toast rosso (sonner).
 
 ---
@@ -111,6 +113,6 @@ pnpm test:board
 ## Riferimenti
 
 - Implementazione CRM staff: [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md)
-- Dialog **Crea Cameriere** (form + submit): [`PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md`](PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md)
+- Dialog **Crea Cameriere** (form + submit + foto dopo **`00170`**): [`PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md`](PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md), [`PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md`](PROMPT_CHAT_E4_STAFF_PROFILE_PHOTO_CRM_UPLOAD.md)
 - Note dev: [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (§ Camerieri, § Board)
 - Roadmap gate: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md)
