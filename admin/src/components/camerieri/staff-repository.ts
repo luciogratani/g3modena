@@ -249,3 +249,30 @@ export async function upsertStaff(
   ;[cameriere] = await staffApplyAvatarSignedUrls(client, [cameriere])
   return { created: true, cameriere }
 }
+
+/** Aggiorna solo `is_active` per righe nella sede indicata (CRM). */
+export async function updateStaffActive(
+  citySlug: CandidateCitySlug,
+  staffId: string,
+  isActive: boolean,
+): Promise<Cameriere> {
+  const client = getSupabaseClient()
+  const cityId = await slugToCityId(citySlug)
+  if (!cityId) throw new Error(`Sede non trovata in database per slug: ${citySlug}`)
+
+  const { data, error } = await client
+    .from("staff")
+    .update({ is_active: isActive })
+    .eq("id", staffId)
+    .eq("city_id", cityId)
+    .select(STAFF_COLUMNS)
+    .maybeSingle()
+
+  if (error) throw toStaffError(error, "Impossibile aggiornare lo stato del cameriere.")
+  if (!data) throw new Error("Cameriere non trovato o non appartenente alla sede corrente.")
+
+  const row = data as unknown as StaffRow
+  let cameriere = rowToCameriere(row, citySlug)
+  ;[cameriere] = await staffApplyAvatarSignedUrls(client, [cameriere])
+  return cameriere
+}

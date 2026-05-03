@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { Loader2, Plus, Search } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +9,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { CandidateCitySlug } from "@/src/data/mockCandidates"
 import { CreateCameriereDialog } from "./CreateCameriereDialog"
 import { CamerieriCrmPanel } from "./CamerieriCrmPanel"
+import { dispatchStaffListInvalidated } from "./staff-events"
+import { updateStaffActive } from "./staff-repository"
+import type { Cameriere } from "./types"
 import { useCamerieri, type CamerieriActiveFilter } from "./useCamerieri"
 
 type CamerieriPageProps = {
@@ -36,6 +39,14 @@ export function CamerieriPage({ city }: CamerieriPageProps) {
   const activeCount = useMemo(() => items.filter((item) => item.isActive).length, [items])
   const showInitialSkeleton = loading && items.length === 0
   const refreshing = loading && items.length > 0
+
+  const toggleCameriereActive = useCallback(
+    async (item: Cameriere, nextActive: boolean) => {
+      await updateStaffActive(city, item.id, nextActive)
+      dispatchStaffListInvalidated()
+    },
+    [city],
+  )
 
   return (
     <div className="h-full min-h-0 p-6">
@@ -95,12 +106,12 @@ export function CamerieriPage({ city }: CamerieriPageProps) {
                 ))}
               </div>
             ) : (
-              <CamerieriCrmPanel items={filteredItems} />
+              <CamerieriCrmPanel items={filteredItems} onToggleIsActive={toggleCameriereActive} />
             )}
           </div>
         </div>
       </div>
-      <CreateCameriereDialog open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
+      <CreateCameriereDialog city={city} open={createDialogOpen} onOpenChange={setCreateDialogOpen} />
     </div>
   )
 }

@@ -109,7 +109,7 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 - **C4** — flush/export analytics (buffer già presente; utile ma non impedisce il sito).
 - **A5** — dashboard KPI raffinati (A4 chiuso).
-- Smoke test manuali residuali (dialog **Crea Cameriere** ancora placeholder, eventuale policy **delete** candidato post-promozione), refactor frammentazione (`CandidatiBoard`, `careers-form`, …) — qualità/tech debt, non prerequisito minimo funzionale.
+- Smoke test manuali residuali (eventuale policy **delete** candidato post-promozione), refactor frammentazione (`CandidatiBoard`, `careers-form`, …) — qualità/tech debt, non prerequisito minimo funzionale. **Crea Cameriere** + **toggle stato** CRM: vedi [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) § Camerieri, [`SMOKE_TEST_ADMIN.md`](SMOKE_TEST_ADMIN.md) § E.
 
 ---
 

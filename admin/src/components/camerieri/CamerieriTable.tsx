@@ -1,7 +1,11 @@
+import { useState } from "react"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { badgeVariants } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { QuickContactIconButtons } from "@/src/components/candidati-board/QuickContactIconButtons"
 import type { Cameriere } from "./types"
 import { CamerieriTagIconGroup } from "./CamerieriTagIconGroup"
@@ -13,6 +17,7 @@ const STICKY_HEADER_CLASS = "sticky top-0 z-20 bg-background"
 
 type CamerieriTableProps = {
   items: Cameriere[]
+  onToggleIsActive?: (item: Cameriere, isActive: boolean) => Promise<void>
 }
 
 function getInitials(firstName: string, lastName: string): string {
@@ -30,7 +35,22 @@ function formatUpdatedShort(iso: string): string {
 /**
  * CRM table: one fixed-height row per waiter; horizontal scroll when the panel is narrow.
  */
-export function CamerieriTable({ items }: CamerieriTableProps) {
+export function CamerieriTable({ items, onToggleIsActive }: CamerieriTableProps) {
+  const [busyStaffId, setBusyStaffId] = useState<string | null>(null)
+
+  async function handleToggle(item: Cameriere) {
+    if (!onToggleIsActive || busyStaffId !== null) return
+    const next = !item.isActive
+    setBusyStaffId(item.id)
+    try {
+      await onToggleIsActive(item, next)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Impossibile aggiornare lo stato.")
+    } finally {
+      setBusyStaffId(null)
+    }
+  }
+
   return (
     <div className="min-h-full overflow-x-auto overflow-y-visible">
       <TooltipProvider delayDuration={300}>
@@ -79,9 +99,34 @@ export function CamerieriTable({ items }: CamerieriTableProps) {
                     <QuickContactIconButtons phone={item.phone} email={item.email} />
                   </TableCell>
                   <TableCell className={`${ROW_HEIGHT_CLASS} py-0 align-middle`}>
-                    <Badge variant={item.isActive ? "default" : "secondary"} className="shrink-0 whitespace-nowrap">
-                      {item.isActive ? "Attivo" : "Non attivo"}
-                    </Badge>
+                    {onToggleIsActive ? (
+                      <button
+                        type="button"
+                        className={cn(
+                          badgeVariants({ variant: item.isActive ? "default" : "secondary" }),
+                          "cursor-pointer shrink-0 gap-1 whitespace-nowrap disabled:pointer-events-none disabled:opacity-60",
+                        )}
+                        disabled={busyStaffId !== null}
+                        aria-busy={busyStaffId === item.id}
+                        aria-label={item.isActive ? `Disattiva ${item.firstName} ${item.lastName}` : `Attiva ${item.firstName} ${item.lastName}`}
+                        aria-pressed={item.isActive}
+                        onClick={() => void handleToggle(item)}
+                      >
+                        {busyStaffId === item.id ? (
+                          <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
+                        ) : null}
+                        <span>{item.isActive ? "Attivo" : "Non attivo"}</span>
+                      </button>
+                    ) : (
+                      <span
+                        className={cn(
+                          badgeVariants({ variant: item.isActive ? "default" : "secondary" }),
+                          "pointer-events-none shrink-0 whitespace-nowrap",
+                        )}
+                      >
+                        {item.isActive ? "Attivo" : "Non attivo"}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className={`${ROW_HEIGHT_CLASS} max-w-0 py-0 align-middle`}>
                     <CamerieriTagIconGroup tags={item.tags} />

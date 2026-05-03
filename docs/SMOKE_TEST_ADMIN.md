@@ -2,7 +2,7 @@
 
 Checklist **manuale** rapida dopo deploy o prima di un rilascio. Ordine suggerito: prerequisiti → blocchi **A→H**. Segna le caselle mentre procedi.
 
-**Tempo indicativo:** ~25–40 minuti (dipende da dati sul DB).
+**Tempo indicativo:** ~26–42 minuti (dipende da dati sul DB).
 
 ---
 
@@ -51,11 +51,13 @@ Checklist **manuale** rapida dopo deploy o prima di un rilascio. Ordine suggerit
 
 ---
 
-## E — Camerieri CRM (`public.staff`) (~4 min)
+## E — Camerieri CRM (`public.staff`) (~5 min)
 
 - [ ] Lista camerieri per una sede: **loading** al primo ingresso poi tabella (anche vuota) senza pannello rosso “Caricamento non riuscito”.
 - [ ] Se ci sono righe **`staff`** per quella `city_id` in Supabase, compaiono in tabella (allineamento base con Table Editor **`staff`**).
 - [ ] **Ricerca** e **filtro stato** (`Tutti` / Attivi / Non attivi): nessun errore in UI.
+- [ ] **Crea Cameriere:** dialog → invio con dati validi (nome/cognome obbligatori; email/telefono/tag opzionali) → in Table Editor **`staff`** nuova riga con **`source_candidate_id` null** per la sede selezionata; la **lista CRM si aggiorna** senza ricaricare la pagina (evento invalidazione lista).
+- [ ] **Colonna Stato:** il badge **Attivo / Non attivo** è **cliccabile** (cursore pointer); un click inverte **`is_active`** in DB per quella riga (e la lista si ricarica); in caso di errore compare toast rosso (sonner).
 
 ---
 
@@ -109,5 +111,6 @@ pnpm test:board
 ## Riferimenti
 
 - Implementazione CRM staff: [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md)
+- Dialog **Crea Cameriere** (form + submit): [`PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md`](PROMPT_CHAT_E4_STAFF_CREATE_CAMERIERE_DIALOG.md)
 - Note dev: [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (§ Camerieri, § Board)
 - Roadmap gate: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMAP.md)
