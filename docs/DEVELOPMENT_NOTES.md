@@ -109,15 +109,15 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 
 [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md).
 
-#### Smoke manuale (Camerieri)
+#### Smoke manuale (Camerieri) — eseguito E2E il 2026-05-07
 
-- [ ] Prerequisito ambiente remoti: dopo `supabase db push`, migrazione applicata **`20260501000170`** (`staff-crm-avatars`) così upload foto CRM non fallisce — vedi [`supabase/README.md`](../supabase/README.md) § Storage `staff-crm-avatars`.
-- [ ] Camerieri: almeno **due** sedi attive in sidebar.
-- [ ] Tabella CRM vs Supabase **`staff`**; ricerca e filtri.
-- [ ] **Crea Cameriere:** dialog valido → riga `staff` con `source_candidate_id` **null**; lista si aggiorna senza F5.
-- [ ] **Crea Cameriere con foto:** stesso flow con immagine JPG/PNG/WebP ≤ 5 MB → **`avatar_path`** in DB inizia con **`crm-staff/`**, file nel bucket **`staff-crm-avatars`** (Dashboard Storage); dopo **F5** o invalidazione lista, anteprima avatar in tabella tramite signed URL coerente.
-- [ ] **Badge Stato:** click attiva/disattiva → colonna `is_active` in DB e filtri lista coerenti.
-- [ ] `Promuovi a Cameriere`: riga `staff` + candidato in **Archivio** dopo reload.
+- [x] Prerequisito ambiente remoti: dopo `supabase db push`, migrazione applicata **`20260501000170`** (`staff-crm-avatars`) così upload foto CRM non fallisce — vedi [`supabase/README.md`](../supabase/README.md) § Storage `staff-crm-avatars`.
+- [x] Camerieri: almeno **due** sedi attive in sidebar.
+- [x] Tabella CRM vs Supabase **`staff`**; ricerca e filtri.
+- [x] **Crea Cameriere:** dialog valido → riga `staff` con `source_candidate_id` **null**; lista si aggiorna senza F5.
+- [x] **Crea Cameriere con foto:** stesso flow con immagine JPG/PNG/WebP ≤ 5 MB → **`avatar_path`** in DB inizia con **`crm-staff/`**, file nel bucket **`staff-crm-avatars`** (Dashboard Storage); dopo **F5** o invalidazione lista, anteprima avatar in tabella tramite signed URL coerente.
+- [x] **Badge Stato:** click attiva/disattiva → colonna `is_active` in DB e filtri lista coerenti.
+- [x] `Promuovi a Cameriere`: riga `staff` + candidato in **Archivio** dopo reload.
 
 #### Rimandato
 
@@ -150,6 +150,7 @@ Test Vitest validazione camerieri estratta (prompt dialog step 5 opzionale), sce
 
 ## TODO pre-lancio effettivo (priorita)
 
+- [x] **Decisione L3 (2026-05-07):** primo go-live in modalita **Static-first** (contenuti web da artifact build consolidato). Il runtime contenuti da DB resta backlog successivo.
 - [x] **Board persistence server-side** (2026-05-01, **L5**): board candidati su `public.candidates` (admin Supabase autenticato), `admin_workflow jsonb` + `kanban_rank numeric`, repository condiviso multi-browser, mock `CANDIDATES` solo come test fixture.
 - [x] **Contatti > Messaggi backend wiring**: Edge `contact-submissions` + inbox admin Supabase (`contact_messages`), stato `nuovo/letto/archiviato` persistito.
 - [ ] **CMS wiring production-safe**: verifica schema, RLS/policy, tenant separation, fallback robusto.
@@ -271,6 +272,11 @@ Priorita consigliata: `CandidatiBoard` -> `CandidateDetailSheet` -> `CmsWebEdito
 - **Vercel:** due progetti (**`web`** + **`admin`**) con env `VITE_*` allineate al minimo operativo; **senza** `VITE_ANALYTICS_INGEST_URL` finché non si attiva ingest remoto (resta solo buffer locale sul sito — vedi roadmap C4).
 - **Supabase Functions:** già distribuite **`career-submissions`** e **`contact-submissions`** sul progetto collegato; verifica rapida → [`docs/PROMPT_CHAT_MAIN_LAUNCH_READINESS.md`](PROMPT_CHAT_MAIN_LAUNCH_READINESS.md) § *Contesto operativo* › *Verifiche Supabase rapide*.
 - **`public.cities`:** populate in ambiente destinato al go-live con slug coerenti con form pubblico ed admin (**Config › Sedi**).
+
+### Aggiornamento operativo (2026-05-07)
+
+- Verificato `supabase db push`: database remoto allineato (`Remote database is up to date`), inclusa migrazione storage **`20260501000170`** già applicata.
+- Eseguito smoke test **Camerieri end-to-end** con esito positivo (checklist § *Smoke manuale (Camerieri)* completata).
 
 ---
 

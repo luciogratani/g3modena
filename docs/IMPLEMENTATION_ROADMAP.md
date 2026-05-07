@@ -33,6 +33,9 @@ Documenti di riferimento: [`PRE_WIRING_CONCEPT.md`](PRE_WIRING_CONCEPT.md), [`DB
 - [x] **B2 — Propagazione UTM + `cid`**  
   Adapter web `campaign-attribution`: lettura query (`cid`, `utm_*`) da URL, persistenza in `sessionStorage` (`web:campaign-attribution:v1`) e propagazione nel submit candidature JSON/multipart (`cid`, `utmSource`, `utmMedium`, `utmCampaign`, `utmTerm`, `utmContent`) in `careers-form.tsx`.
 
+- [ ] **B3 — Site Mode Switch (maintenance / careers-only)**  
+  Introdurre controllo da admin per due modalita operative del sito pubblico: **maintenance mode** (sospende la navigazione standard e mostra una pagina dedicata "sito in manutenzione") e **careers-only mode** (mostra esclusivamente il form candidature, stile typeform). Definizione UX della pagina manutenzione e scelta del punto UI admin (es. `Config` vs `Web Editor`) da finalizzare in step dedicato.
+
 ---
 
 ## Fase C — Analytics lato client (prima del DB)
@@ -97,7 +100,8 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
   Edge Function `contact-submissions`: `POST` JSON da `web/components/contact-form.tsx`, validazione server-side, `source` / `status` forzati (`web_contact_form`, `nuovo`), insert `public.contact_messages`. Inbox **`admin/src/components/contact-messages/*`**: lettura condivisa Supabase, UPDATE stato, loading/error, badge sidebar. Deploy/env: **`CONTACT_ALLOWED_ORIGINS`**, **`SUPABASE_SERVICE_ROLE_KEY`**, deploy function; `VITE_CONTACT_ENDPOINT` → URL function (`supabase/README.md`). Prompt storico: [`PROMPT_CHAT_L2_CONTACT_RECEIVER.md`](PROMPT_CHAT_L2_CONTACT_RECEIVER.md).
 
 - [ ] **L3 — Strategia contenuti sito pubblico**  
-  Una delle due: deploy **statico** da contenuti già consolidati nell’artifact di build **oppure** lettura CMS da DB **production-safe** (schema/RLS/fallback) — DEVELOPMENT_NOTES: «CMS wiring production-safe» + «Web runtime da DB».
+  Una delle due: deploy **statico** da contenuti già consolidati nell’artifact di build **oppure** lettura CMS da DB **production-safe** (schema/RLS/fallback) — DEVELOPMENT_NOTES: «CMS wiring production-safe» + «Web runtime da DB».  
+  **Decisione prodotto (2026-05-07):** adottare **A — Static-first** per il primo go-live (runtime CMS da DB rimandato a fase successiva).
 
 - [x] **L4 — Sicurezza gestionale** (2026-05-01)  
   Auth + guard sulle route admin operative insieme a **E5**; resta da confermare hardening deploy (HTTPS-only cookies, URL gestionale non indicizzato, ecc.) in checklist pre-prod.
@@ -117,4 +121,4 @@ Sintesi dai TODO in [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) (careers rece
 
 Quando completi una voce, imposta `- [x]` e opzionalmente aggiungi una riga data o riferimento PR sotto la voce.
 
-Ultimo aggiornamento checklist (2026-05-03): **E4 · campagne** — persistenza liste + builder + storage preview; ingest **`first_data_at` / `last_data_at`** documentato come backlog (non admin). **Pausa:** [`PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md`](PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md) **Step 6** (KPI card / aggregati **`analytics_events`**) rinviato a ripresa progetto utente (preferenza sessione con modello più contesto quando i dati ingest saranno pronti). Precedenza (2026-05-02): **Camerieri / `staff`**. Prima (2026-05-01): **`cities`** + board **`candidates`** (**`L5`**), messaggi, **L1**, **L2**, **E2**, **E5**, **L4**. **Focus successivi suggeriti (post-pausa campagne KPI):** ingest analytics → **`analytics_events`** + timeline campagne; gate **L3**; bucket media CMS (**E3**); **A5**; CRM staff come da [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md).
+Ultimo aggiornamento checklist (2026-05-07): verificati **`supabase db push`** remoto allineato (include storage **`00170`**) e **smoke Camerieri end-to-end** superato (vedi [`DEVELOPMENT_NOTES.md`](DEVELOPMENT_NOTES.md) § Camerieri). Aggiornamento precedente (2026-05-03): **E4 · campagne** — persistenza liste + builder + storage preview; ingest **`first_data_at` / `last_data_at`** documentato come backlog (non admin). **Pausa:** [`PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md`](PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md) **Step 6** (KPI card / aggregati **`analytics_events`**) rinviato a ripresa progetto utente (preferenza sessione con modello più contesto quando i dati ingest saranno pronti). Precedenza (2026-05-02): **Camerieri / `staff`**. Prima (2026-05-01): **`cities`** + board **`candidates`** (**`L5`**), messaggi, **L1**, **L2**, **E2**, **E5**, **L4**. **Focus successivi suggeriti (post-pausa campagne KPI):** ingest analytics → **`analytics_events`** + timeline campagne; gate **L3**; bucket media CMS (**E3**); **A5**; CRM staff come da [`PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md`](PROMPT_CHAT_E4_STAFF_CAMERIERI_SUPABASE.md).
