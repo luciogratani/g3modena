@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useState } from "react"
-import { Activity, CircleUserRound, LogOut, Monitor, Moon, RotateCw, Sun } from "lucide-react"
+import { Activity, CircleUserRound, Globe2, LogOut, Monitor, Moon, RotateCw, Sun } from "lucide-react"
+import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import {
+  loadSiteMode,
+  saveSiteMode,
+  type SiteMode,
+} from "./site-mode/storage"
 import type { ThemePreference } from "../lib/theme-preference"
 import { hasSupabaseConfig, supabase, supabaseUrl } from "../lib/supabase"
 
@@ -25,6 +31,8 @@ type SupabaseMonitorState = {
   detail: string
 }
 
+type SiteModeStatus = "loading" | "ready" | "saving" | "error"
+
 const STATUS_BADGE_VARIANT: Record<SupabaseStatus, "secondary" | "destructive" | "outline"> = {
   checking: "secondary",
   online: "secondary",
@@ -39,6 +47,18 @@ const STATUS_LABEL: Record<SupabaseStatus, string> = {
   misconfigured: "Configurazione mancante",
 }
 
+const SITE_MODE_LABEL: Record<SiteMode, string> = {
+  normal: "Normale",
+  maintenance: "Manutenzione",
+  careers_only: "Solo candidature",
+}
+
+const SITE_MODE_DESCRIPTION: Record<SiteMode, string> = {
+  normal: "Il sito pubblico resta invariato.",
+  maintenance: "Il sito pubblico mostra solo la pagina di manutenzione.",
+  careers_only: "Il sito pubblico mostra esclusivamente il form candidature.",
+}
+
 export function SettingsPage({
   themePreference,
   onThemePreferenceChange,
@@ -47,6 +67,14 @@ export function SettingsPage({
 }: SettingsPageProps) {
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [siteMode, setSiteMode] = useState<SiteMode>("normal")
+  const [savedSiteMode, setSavedSiteMode] = useState<SiteMode>("normal")
+  const [siteModeStatus, setSiteModeStatus] = useState<SiteModeStatus>(
+    hasSupabaseConfig ? "loading" : "error",
+  )
+  const [siteModeError, setSiteModeError] = useState<string | null>(
+    hasSupabaseConfig ? null : "Supabase admin non configurato.",
+  )
   const [monitorState, setMonitorState] = useState<SupabaseMonitorState>({
     status: hasSupabaseConfig ? "checking" : "misconfigured",
     latencyMs: null,
@@ -113,9 +141,48 @@ export function SettingsPage({
     }
   }, [])
 
+  const refreshSiteMode = useCallback(async () => {
+    if (!hasSupabaseConfig) {
+      setSiteModeStatus("error")
+      setSiteModeError("Supabase admin non configurato.")
+      return
+    }
+
+    setSiteModeStatus("loading")
+    setSiteModeError(null)
+    try {
+      const nextSiteMode = await loadSiteMode()
+      setSiteMode(nextSiteMode)
+      setSavedSiteMode(nextSiteMode)
+      setSiteModeStatus("ready")
+    } catch (error) {
+      setSiteModeStatus("error")
+      setSiteModeError(error instanceof Error ? error.message : "Impossibile caricare la modalita sito.")
+    }
+  }, [])
+
+  async function handleSaveSiteMode() {
+    setSiteModeStatus("saving")
+    setSiteModeError(null)
+    try {
+      const nextSiteMode = await saveSiteMode(siteMode)
+      setSiteMode(nextSiteMode)
+      setSavedSiteMode(nextSiteMode)
+      setSiteModeStatus("ready")
+      toast.success("Modalita sito aggiornata.")
+    } catch (error) {
+      setSiteModeStatus("error")
+      setSiteModeError(error instanceof Error ? error.message : "Impossibile salvare la modalita sito.")
+    }
+  }
+
   useEffect(() => {
     void runSupabaseCheck()
   }, [runSupabaseCheck])
+
+  useEffect(() => {
+    void refreshSiteMode()
+  }, [refreshSiteMode])
 
   async function handleLogoutClick() {
     setLogoutError(null)
@@ -180,6 +247,83 @@ export function SettingsPage({
                 </div>
               </RadioGroup>
             </fieldset>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Globe2 className="size-4 text-muted-foreground" />
+              <CardTitle>Modalita sito pubblico</CardTitle>
+              <Badge variant={siteMode === "normal" ? "secondary" : "outline"}>
+                {SITE_MODE_LABEL[siteMode]}
+              </Badge>
+            </div>
+            <CardDescription>
+              Commuta il rendering runtime del sito pubblico dopo reload.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <fieldset className="flex flex-col gap-3" aria-labelledby="site-mode-label">
+              <Label id="site-mode-label">Site mode</Label>
+              <RadioGroup
+                value={siteMode}
+                onValueChange={(value) => {
+                  if (value === "normal" || value === "maintenance" || value === "careers_only") {
+                    setSiteMode(value)
+                  }
+                }}
+                aria-label="Seleziona modalita sito pubblico"
+                disabled={siteModeStatus === "loading" || siteModeStatus === "saving"}
+              >
+                {(["normal", "maintenance", "careers_only"] as const).map((mode) => (
+                  <div key={mode} className="flex items-start gap-2 rounded-md border px-3 py-2">
+                    <RadioGroupItem value={mode} id={`site-mode-${mode}`} className="mt-0.5" />
+                    <Label htmlFor={`site-mode-${mode}`} className="flex cursor-pointer flex-col gap-1">
+                      <span>{SITE_MODE_LABEL[mode]}</span>
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {SITE_MODE_DESCRIPTION[mode]}
+                      </span>
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </fieldset>
+
+            {siteModeError ? (
+              <Alert variant="destructive">
+                <AlertTitle>Modalita sito non disponibile</AlertTitle>
+                <AlertDescription>{siteModeError}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                className="w-full justify-center sm:w-auto"
+                onClick={() => void handleSaveSiteMode()}
+                disabled={
+                  siteModeStatus === "loading" ||
+                  siteModeStatus === "saving" ||
+                  siteMode === savedSiteMode
+                }
+              >
+                {siteModeStatus === "saving" ? "Salvataggio..." : "Salva modalita"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-center sm:w-auto"
+                onClick={() => void refreshSiteMode()}
+                disabled={siteModeStatus === "loading" || siteModeStatus === "saving"}
+              >
+                <RotateCw
+                  data-icon="inline-start"
+                  className={siteModeStatus === "loading" ? "animate-spin" : undefined}
+                />
+                Ricarica
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

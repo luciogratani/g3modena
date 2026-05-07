@@ -27,6 +27,7 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 - [x] **C3 `careers_abandon`**: listener best-effort `visibilitychange` (`hidden`) + `pagehide` in `careers-form.tsx`, con dedup max 1 evento per attempt via chiavi sessione `web:analytics:careers:abandon-sent:v1:{attemptId}` e guard submit `web:analytics:careers:submit-sent:v1:{attemptId}`.
 - [x] **C4 ingest adapter (pre-Supabase)**: `web/lib/analytics-ingest.ts` avvia flush automatico solo se presente `VITE_ANALYTICS_INGEST_URL`; il buffer locale `web:analytics:buffer:v1` resta sempre source of truth (append offline-first), poi invio batch JSON in snake_case (`events[]`) con retry silenzioso su errore. Trigger flush: debounce/idle su nuovi eventi, intervallo leggero (15s), lifecycle `visibilitychange` (`hidden`) e `pagehide`; su `200 OK` rimozione dal buffer dei soli eventi accettati (se `accepted_event_ids` o `accepted_count`, altrimenti batch intero). In dev disponibile mock locale (`pnpm --filter web dev:analytics-mock`, endpoint `http://localhost:8788/ingest`) per test end-to-end senza Supabase. Contratto request/response: [`ANALYTICS_INGEST_CONTRACT.md`](ANALYTICS_INGEST_CONTRACT.md).
 - [x] Receiver **`VITE_CAREER_ENDPOINT`** (gate **L1**, 2026-05-01): Edge Function `supabase/functions/career-submissions/index.ts` — persistenza **`officeCitySlug`** tramite lookup **`public.cities`** (`is_active`), attribution **UTM + `cid`** + **`campaign_id`** da RPC `resolve_campaign_id_from_cid`; bucket privati **`careers-photos`** / **`careers-cv`** (`20260501000140_e3_storage_careers.sql`). Deploy/env/smoke: `supabase/README.md`; formato env web: `web/.env.example` (`VITE_CAREER_SUBMIT_FORMAT=multipart`).
+- [x] **B3 Site Mode Switch** (2026-05-07): contratto unico **`site_mode`** (`normal | maintenance | careers_only`) persistito in **`public.site_settings`**. `web/src/App.tsx` legge la modalità via REST anon al bootstrap (`web/data/site-mode.ts`), blocca il rendering standard durante il caricamento remoto, usa fallback sicuro `normal` su env/fetch mancanti e applica i gate: sito completo, pagina manutenzione, oppure solo `CareersForm`.
 
 ---
 
@@ -38,6 +39,7 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 - [x] Sidebar ripulita (`Showcase` rimosso, sezione candidati semplificata, badge collegati ai dati).
 - [x] Pagina `Impostazioni` reale con tema `light|dark|auto` + persistenza + migrazione chiave legacy.
 - [x] Pagina **Marketing › Campagne** (`CampagnePage`): lista da **`public.campaigns`**, storage **`campaign-previews`**, salvataggio builder con validazione contratto; KPI card ancora a zero senza query su **`analytics_events`**. **`first_data_at` / `last_data_at`:** solo dalla futura pipeline ingest (policy in § *Decisioni tecniche*). **Ripresa lavori:** KPI live + aggregati (**prompt Campagne Step 6**) in pausa fino a decisione progetto utente / modello più adatto e dati ingest; contratto [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md); orchestrazione [`PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md`](PROMPT_CHAT_E4_CAMPAIGNS_SUPABASE.md).
+- [x] Pagina **Config › Impostazioni** include **Modalita sito pubblico** (B3): radio `Normale` / `Manutenzione` / `Solo candidature`, load/save su **`public.site_settings`** via Supabase autenticato, feedback loading/error/success con toast.
 
 ### Board candidature
 - [x] Board **parametrizzata per `citySlug` stringa** (città da config `listActiveCities`), senza union rigida solo Modena/Sassari; filtri colonna `Nuovo` e stato board aggiornati di conseguenza (`board-utils`, `useCandidateBoardState`, `useNewColumnFilters`, `KanbanColumn`).
@@ -134,6 +136,7 @@ Test Vitest validazione camerieri estratta (prompt dialog step 5 opzionale), sce
 - **Discard policy**: `scartati` è stato strutturato (catalogo ragioni v1 chiuso + nota opzionale). Il move avviene solo dopo conferma del dialog (parità con `colloquio`/`postpone`). Uscire dalla colonna (`Ripristina`, archivio, drop su altra colonna) ripulisce automaticamente `discardReasonKey|Note|At|ReturnStatus` via `clearDiscardMetadataIfNeeded`. `Promuovi a Cameriere` non è esposto in `scartati`; se la promozione su `staff` riesce, il candidato viene **archiviato** automaticamente (stesso path del menu «Archivia»).
 - **Contract policy**: nuove key CMS prima in `@g3/content-contract`, poi propagate ad admin/web.
 - **Auth policy** (2026-05-01, **E5** / **L4** baseline): senza Supabase configurato (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) o senza sessione valida resta **`AdminLoginPage`**; dati operativi dietro RLS **`authenticated`** (`admin/src/App.tsx`). Residuo: hardening deploy (HTTPS, cookie, URL non indicizzato) checklist pre-prod.
+- **Site mode policy** (2026-05-07, **B3**): naming tecnico unico **`site_mode`** in DB/admin/web/docs; valori ammessi `normal | maintenance | careers_only`. La riga può essere assente: il fallback applicativo resta sempre `normal`. Admin scrive con upsert autenticato; web legge solo `site_mode` via REST anon e non dipende da `cms_sections` nel path static-first.
 - **Campagne status policy**: usare `first_data_at` (primo `page_view` con `cid`) e `last_data_at` (ultimo evento attribuito) come uniche fonti canoniche.
 - **Campagne query policy**: derivare `No dati|Attiva|Disattiva` a runtime (finestra 5 giorni) senza persistere `status` in colonna nella v1.
 - **Campagne `first_data_at` / `last_data_at` (Step E4 / backlog ingest, non admin):**
@@ -219,7 +222,7 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 Stato 2026-05-01: completati **audit ERD (D1)** e **migrazioni SQL v1 (E1)** in `supabase/migrations/`.
 
 - **Vincolo no-mock confermato:** migrazioni **schema-only**; nessun `INSERT` di dati demo/business.
-- **Tabelle create v1:** `cities`, `campaigns`, `candidates` (alter `0080` per A4 *Scartati*), `staff`, `cms_sections`, `contact_messages`, `analytics_events`.
+- **Tabelle create v1:** `cities`, `campaigns`, `candidates` (alter `0080` per A4 *Scartati*), `staff`, `cms_sections`, `contact_messages`, `analytics_events`, `site_settings` (B3).
 - **Helper condiviso:** `pgcrypto` + trigger function `set_updated_at_timestamp()` (solo utilità tecnica).
 - **Scelte principali allineate ai contratti:**
   - `campaigns`: `cid` unique, stato derivato runtime (`first_data_at`/`last_data_at`), niente `status` persistito;
@@ -227,6 +230,7 @@ Stato 2026-05-01: completati **audit ERD (D1)** e **migrazioni SQL v1 (E1)** in 
   - `analytics_events`: append-only con `client_event_id` (idempotenza ingest) e `received_at`;
   - `cms_sections`: unique composito tenant+sezione (`NULLS NOT DISTINCT`, Postgres 15+);
   - `contact_messages`: `updated_at` + workflow `nuovo|letto|archiviato`;
+  - `site_settings`: chiave `site_mode`, valori `normal|maintenance|careers_only`, RLS admin `authenticated` + select anon limitato alla chiave pubblica;
   - `candidates` (A4 / migrazione `0080`): `pipeline_stage` esteso con `scartati`; nuove colonne `discard_reason_key|note|discarded_at|return_status` con CHECK whitelistati e indice parziale `candidates_discard_reason_idx where discard_reason_key is not null`.
   - `candidates` (E4/L5 / migrazione `0150`): `admin_workflow jsonb` (snapshot UI workflow non normalizzato, no CHECK in v1) + `kanban_rank numeric` scoped per `(city_id, pipeline_stage)` (strategia midpoint float, indice composito `candidates_city_stage_rank_idx`).
 - **Perimetro residuo:** E3 (Storage **CMS**/media senza baseline); **E4** — campagne ora su DB (**liste + persist**); restano KPI card campagne (**Step 6** prompt) dopo populate **`analytics_events`**, ingest timeline **`first_data_at`/`last_data_at`** (§ sopra); L3 come da roadmap.
@@ -296,6 +300,7 @@ Priorita consigliata: `CandidatiBoard` -> `CandidateDetailSheet` -> `CmsWebEdito
 
 - Verificato `supabase db push`: database remoto allineato (`Remote database is up to date`), inclusa migrazione storage **`20260501000170`** già applicata.
 - Eseguito smoke test **Camerieri end-to-end** con esito positivo (checklist § *Smoke manuale (Camerieri)* completata).
+- **B3 Site Mode Switch:** implementati migrazione `site_settings`, controllo admin e gate web runtime. Migrazione B3 applicata al DB remoto con `supabase db push` ✓. Build locali eseguite: `pnpm build:web` ✓, `pnpm build:admin` ✓. Resta smoke manuale dei 3 stati (`normal`, `maintenance`, `careers_only`).
 
 ---
 
