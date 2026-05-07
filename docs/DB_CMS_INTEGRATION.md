@@ -17,6 +17,7 @@ Documento tecnico per chat/agent durante:
 - App `web` è una SPA React/Vite.
 - I contenuti pagina sono locali in `web/data/site-content.ts`.
 - Il rendering usa `siteContent` direttamente in `web/src/App.tsx`.
+- **Decisione go-live (L3, 2026-05-07):** primo rilascio in modalita **Static-first**; nessuna dipendenza hard da `cms_sections` nel rendering principale di produzione.
 - Esiste già un adapter pronto per DB in `web/lib/content-adapter.ts`:
   - `adaptSiteContent(rows)` normalizza e valida i dati
   - `loadSiteContent({ tenantSchema, fetchSections })` ha fallback a contenuti locali
@@ -25,6 +26,7 @@ Documento tecnico per chat/agent durante:
   - `VITE_CAREER_ENDPOINT`
 - Lo step **«Scegli la sede»** del form candidature legge **`public.cities`** via **REST Postgres** anon (`fetch` verso `{VITE_SUPABASE_URL}/rest/v1/cities`, header `apikey` + `Authorization` bearer anon) — vedi `web/data/application-office-cities.ts`; **non** c’è dipendenza da `@supabase/supabase-js` nel package `web`.
 - Al momento `web` **non** usa il **client JS** `@supabase/supabase-js`; usa comunque progetto/host Supabase (REST + Functions) quando le env sono configurate.
+- **Backlog post go-live (fuori gate L3):** `CMS wiring production-safe` + `Web runtime da DB` restano pianificati ma non richiesti per il primo deploy pubblico.
 
 Nota: `admin/src/lib/supabase.ts` usa lo stesso host con sessione **`authenticated`**; la `web` resta SPA separata senza quel client ma può parlare allo stesso backend in anonimo dove previsto da RLS.
 

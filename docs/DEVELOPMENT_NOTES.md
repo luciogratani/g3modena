@@ -159,6 +159,25 @@ Test Vitest validazione camerieri estratta (prompt dialog step 5 opzionale), sce
 
 ---
 
+## L3 static-first runbook (go-live)
+
+Per il primo go-live il sito pubblico resta **static-first**: il rendering principale usa `siteContent` consolidato in build (`web/src/App.tsx`), mentre il wiring CMS runtime da DB resta backlog.
+
+### Checklist release (operativa)
+
+1. **Aggiorna contenuti sorgente** in `web/data/site-content.ts` (hero/about/clients/why_g3/footer/seo/sections) mantenendo compatibilita con il contratto `SiteContent`.
+2. **Validazione locale veloce**: avvio `pnpm dev:web` e controllo visuale home + sezioni abilitate/disabilitate (`sections.contactForm.enabled`, `sections.careersForm.enabled`).
+3. **Build rilascio**: eseguire `pnpm build:web` da root monorepo e confermare build Vite completata senza errori.
+4. **Deploy**: pubblicare l'artifact del package `web` sul provider target (Vercel/progetto web) senza introdurre fetch runtime a `cms_sections` nel path principale.
+5. **Smoke post-deploy** (preview o prod): aprire home, inviare submit di test su form Careers e Contact (endpoint validi), verificare assenza errori bloccanti in console/rete.
+
+### Perimetro esplicito post go-live
+
+- `CMS wiring production-safe` (schema/RLS/tenant/fallback robusto) resta nel backlog preesistente.
+- `Web runtime da DB` (lettura `cms_sections` in produzione) resta nel backlog preesistente.
+
+---
+
 ## Inventario migrazione DB (pre-wiring)
 
 Questa sezione fotografa le sorgenti locali che dovranno essere considerate quando si passa a Supabase. Il modello dati completo resta descritto in `docs/DB_CMS_INTEGRATION.md` e nel concept pre-wiring.
