@@ -4,6 +4,7 @@ import {
   removeAnalyticsEventsFromBuffer,
   type AnalyticsEventRecord,
 } from "@/lib/analytics"
+import { requireSupabaseEdgeInvokeHeaders } from "@/lib/supabase-edge-invoke-headers"
 
 const ANALYTICS_INGEST_URL = import.meta.env.VITE_ANALYTICS_INGEST_URL?.trim() ?? ""
 const FLUSH_INTERVAL_MS = 15_000
@@ -44,6 +45,30 @@ let queuedEventsSinceFlush = 0
 
 type WindowWithIdleCallback = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => void
+}
+
+function isSupabaseFunctionUrl(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl)
+    return parsed.hostname.endsWith(".functions.supabase.co")
+  } catch {
+    return false
+  }
+}
+
+function buildIngestHeaders(): HeadersInit {
+  const baseHeaders: HeadersInit = {
+    "Content-Type": "application/json",
+  }
+
+  if (!isSupabaseFunctionUrl(ANALYTICS_INGEST_URL)) {
+    return baseHeaders
+  }
+
+  return {
+    ...baseHeaders,
+    ...requireSupabaseEdgeInvokeHeaders(),
+  }
 }
 
 function isDev(): boolean {
@@ -125,9 +150,7 @@ async function flushAnalyticsBuffer(reason: FlushReason): Promise<void> {
   try {
     const response = await fetch(ANALYTICS_INGEST_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: buildIngestHeaders(),
       body: JSON.stringify({
         events: batch.map(toIngestEvent),
       }),

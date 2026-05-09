@@ -84,9 +84,35 @@ L'adapter considera `2xx` come successo HTTP; per dedup/rimozione puntuale usa q
 
 ---
 
-## Note server-side consigliate
+## Server v1 (Supabase Edge Function)
 
-- Endpoint idempotente su `client_event_id` (evita duplicati su retry).
-- Validare payload in modo tollerante (scartare/normalizzare campi invalidi senza interrompere tutto il batch quando possibile).
-- Salvare `occurred_at` come timestamp evento client; opzionalmente aggiungere `received_at` lato server.
-- Per fase Supabase, mappare verso tabella `analytics_events` mantenendo il modello append-only.
+Implementazione target: `supabase/functions/analytics-ingest/index.ts`.
+
+### Input e validazione
+
+- `POST` JSON con body `{ events: [...] }`.
+- Se `events` manca/non e array: `400`.
+- Per ogni evento:
+  - richiesti: `occurred_at`, `session_id`, `event_type`;
+  - opzionali: tutti gli altri campi del contratto v1;
+  - normalizzazione tollerante: trim stringhe, limiti lunghezza, cast numeri, scarto solo del singolo evento invalido;
+  - `event_type` consentiti: `page_view`, `cta_click`, `careers_form_open`, `careers_step_view`, `careers_abandon`, `careers_submit`.
+
+### Persistenza e mapping campagna
+
+- Insert append-only su `public.analytics_events`.
+- `campaign_id` risolto server-side da `cid` con bridge `public.resolve_campaign_id_from_cid(text)`.
+- Se il mapping non trova campagna valida, l'evento resta valido con `campaign_id = null`.
+
+### Idempotenza e duplicati
+
+- Duplicati su `client_event_id` non devono rompere il batch.
+- Se un evento duplicato viene ricevuto, e considerato "accepted" ai fini ack (cosi il client puo svuotare il buffer in retry).
+
+### Ack response
+
+- Successo: `200` con:
+  - `accepted_event_ids`: array di `client_event_id` effettivamente accettati (nuovi o duplicati),
+  - `accepted_count`: totale eventi accettati.
+- Errori payload globali (es. body non JSON, `events` non array): `4xx` con `ok: false`.
+- Errori interni: `500` con `ok: false`.

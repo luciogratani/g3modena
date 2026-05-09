@@ -431,14 +431,24 @@ export function CareersForm() {
     funnelAttemptIdRef.current = getOrCreateCareersFunnelAttemptId()
     lastKnownStepRef.current = currentStep
     hasSubmittedCurrentAttemptRef.current = false
-    if (formOpenTrackedRef.current) return
     captureCampaignAttributionFromLocation()
+  }, [])
+
+  // Step 7 — funnel fix: `careers_form_open` deve partire solo al primo
+  // segnale reale di intent (click/touch o focus dentro il form), non al
+  // mount del componente. Idempotente per attempt grazie a
+  // `formOpenTrackedRef`, resettato dopo `careers_submit`.
+  function markCareersFormOpenIfNeeded() {
+    if (formOpenTrackedRef.current) return
+    if (!funnelAttemptIdRef.current) {
+      funnelAttemptIdRef.current = getOrCreateCareersFunnelAttemptId()
+    }
     trackAnalyticsEvent({
       eventType: "careers_form_open",
       funnelAttemptId: funnelAttemptIdRef.current,
     })
     formOpenTrackedRef.current = true
-  }, [])
+  }
 
   useEffect(() => {
     if (!funnelAttemptIdRef.current) {
@@ -511,6 +521,8 @@ export function CareersForm() {
             viewport={{ once: true, amount: 0.15 }}
             variants={staggerContainer}
             onSubmit={handleSubmit}
+            onFocusCapture={markCareersFormOpenIfNeeded}
+            onPointerDownCapture={markCareersFormOpenIfNeeded}
             noValidate
           >
             <p className="sr-only" aria-live="polite">
@@ -557,6 +569,7 @@ export function CareersForm() {
                           aria-checked={active}
                           aria-invalid={Boolean(errors.officeCitySlug)}
                           onClick={() => {
+                            markCareersFormOpenIfNeeded()
                             setFormData((prev) => ({
                               ...prev,
                               officeCitySlug: officeCity.slug,

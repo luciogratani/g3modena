@@ -107,6 +107,23 @@ Per ogni campagna (`cid` o `campaign_id` se disponibile):
 - Tempo medio compilazione: avg `registration_duration_seconds` su candidature convertite
 - Conversioni per citta`: `careers_submit` group by `city_slug`
 
+### 5.1) Implementazione v1 (Step 7)
+
+I 5 conteggi base (`page_view`, `cta_click`, `careers_form_open`, `careers_submit`,
+`careers_abandon`) sono esposti come RPC unica:
+
+```sql
+select * from public.campaign_kpi_aggregates_v1();
+```
+
+Returns `(campaign_id, page_view_count, cta_click_count, careers_form_open_count,
+careers_submit_count, careers_abandon_count)` per ogni `campaign_id` con almeno
+un evento attribuito. EXECUTE riservato a `authenticated` (admin).
+
+Le altre voci (`candidates_created`, `avg_registration_seconds`, `conversioni per citta`)
+restano fuori scope v1 (vedi prompt analytics ingest §"Decisioni operative" punto 4):
+le card mostrano `0` con fallback "In attesa dati" quando la campagna non ha eventi.
+
 ---
 
 ## 6) Storage creativita`

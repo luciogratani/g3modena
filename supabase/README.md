@@ -36,8 +36,11 @@ supabase/
     ├── 20260501000140_e3_storage_careers.sql            bucket allegati candidature
     ├── 20260501000150_e4_candidates_admin_workflow.sql  E4/L5: admin_workflow jsonb + kanban_rank numeric
     ├── 20260501000160_e3_storage_campaign_previews.sql bucket anteprime campagne (authenticated)
-    └── 20260501000170_e3_storage_staff_crm_avatars.sql  bucket avatar staff CRM (`crm-staff/`, authenticated)
+    ├── 20260501000170_e3_storage_staff_crm_avatars.sql  bucket avatar staff CRM (`crm-staff/`, authenticated)
+    ├── 20260509000010_l6_campaigns_timeline_update.sql  L6: RPC apply_campaign_event_timeline (server-side ingest)
+    └── 20260509000020_l7_campaign_kpi_aggregates.sql    L7: RPC campaign_kpi_aggregates_v1 (KPI card admin)
 └── functions/
+    ├── analytics-ingest/                              receiver eventi analytics sito
     ├── contact-submissions/                             receiver form contatti
     └── career-submissions/                              receiver candidature web
 ```
@@ -67,10 +70,52 @@ supabase db push
 > fissare un `project_id` specifico. Dopo `supabase link --project-ref <ref>`
 > il file viene rigenerato in locale.
 
+### Stato push remoto (fonte per agent)
+
+Questo blocco e' la fonte canonica per capire se serve ancora `supabase db push`.
+Aggiornarlo dopo ogni push riuscito sul progetto remoto.
+
+- Ultimo aggiornamento stato: **2026-05-09**
+- Ultima migrazione confermata come applicata sul remoto: **`20260509000020_l7_campaign_kpi_aggregates.sql`**
+- Stato sintetico: **remoto allineato, nessuna migrazione locale da pushare**
+
+**Migrazioni gia' pushate (fino a prefisso confermato)**
+
+- `20260501000000_init_extensions_and_helpers.sql`
+- `20260501000010_create_cities.sql`
+- `20260501000020_create_campaigns.sql`
+- `20260501000030_create_candidates.sql`
+- `20260501000040_create_staff.sql`
+- `20260501000050_create_cms_sections.sql`
+- `20260501000060_create_contact_messages.sql`
+- `20260501000070_create_analytics_events.sql`
+- `20260501000080_alter_candidates_discard.sql`
+- `20260501000090_e2b_enable_rls.sql`
+- `20260501000100_e2b_policies_authenticated_admin.sql`
+- `20260501000110_e2b_policies_anon_public.sql`
+- `20260501000120_e2b_campaign_lookup_bridge.sql`
+- `20260501000130_e2b_hardening_grants_and_policy_smoke.sql`
+- `20260501000140_e3_storage_careers.sql`
+- `20260501000150_e4_candidates_admin_workflow.sql`
+- `20260501000160_e3_storage_campaign_previews.sql`
+- `20260501000170_e3_storage_staff_crm_avatars.sql`
+- `20260507000010_b3_site_settings.sql`
+- `20260509000010_l6_campaigns_timeline_update.sql`
+- `20260509000020_l7_campaign_kpi_aggregates.sql`
+
+**Migrazioni locali ancora da pushare**
+
+- Nessuna (remoto allineato all'ultima migrazione locale).
+
+Dopo `supabase db push`:
+1. aggiornare "Ultima migrazione confermata";
+2. spostare le migration appena applicate nella lista "gia' pushate";
+3. lasciare vuota la lista "ancora da pushare" se il remoto e' allineato.
+
 ### Verifica rapida remoto (CLI / Dashboard)
 
-- **Migrazioni applicate:** Dashboard → **Database** → storico migrazioni del progetto *oppure*, con progetto linkato, `supabase migration list` (confronto elenco locale vs remoto). In **SQL Editor**: `select version from supabase_migrations.schema_migrations order by version;` — deve comparire tra le versioni applicate il prefisso **`20260501000170`** (e tutte le migrazioni precedenti in `supabase/migrations/`).
-- **Functions deployate:** Dashboard → **Edge Functions** (`career-submissions`, `contact-submissions`) *oppure* `supabase functions list`. Un `curl` di smoke come sotto che **non** restituisce **404** sul path della function indica che il deploy esiste (401 senza header anon è normale sul gateway).
+- **Migrazioni applicate:** Dashboard → **Database** → storico migrazioni del progetto *oppure*, con progetto linkato, `supabase migration list` (confronto elenco locale vs remoto). In **SQL Editor**: `select version from supabase_migrations.schema_migrations order by version;` — deve comparire tra le versioni applicate il prefisso **`20260509000020`** (e tutte le migrazioni precedenti in `supabase/migrations/`).
+- **Functions deployate:** Dashboard → **Edge Functions** (`analytics-ingest`, `career-submissions`, `contact-submissions`) *oppure* `supabase functions list`. Un `curl` di smoke come sotto che **non** restituisce **404** sul path della function indica che il deploy esiste (401 senza header anon è normale sul gateway).
 
 ### Deploy receiver candidature (L1)
 
@@ -156,6 +201,55 @@ curl -i -X POST "$VITE_CONTACT_ENDPOINT" \
     "phone": "+393331234567",
     "city": "Modena",
     "message": "Vorrei informazioni per un evento aziendale."
+  }'
+```
+
+### Deploy receiver analytics ingest
+
+Il receiver `analytics-ingest` riceve batch JSON (`events[]`) dal web e inserisce
+append-only su `public.analytics_events`, risolvendo `campaign_id` da `cid`
+tramite RPC `resolve_campaign_id_from_cid`.
+
+Per ogni evento attribuito (con `campaign_id` non null) la function chiama anche
+la RPC `apply_campaign_event_timeline(campaign_id, min_occurred_at, max_occurred_at)`
+per aggiornare `campaigns.first_data_at` / `last_data_at` (vedi
+`docs/CAMPAIGNS_CONTRACT.md` §2). L'update e' idempotente / monotono via
+`LEAST` / `GREATEST` e preserva il check `campaigns_data_window_check`.
+
+```bash
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+supabase secrets set ANALYTICS_ALLOWED_ORIGINS=https://g3modena.com
+supabase functions deploy analytics-ingest
+```
+
+Env web production:
+
+```bash
+VITE_ANALYTICS_INGEST_URL=https://<project-ref>.functions.supabase.co/analytics-ingest
+```
+
+Come per le altre functions, il gateway richiede header anon:
+`Authorization: Bearer <anon>` + `apikey: <anon>`.
+
+Smoke manuale JSON:
+
+```bash
+curl -i -X POST "$VITE_ANALYTICS_INGEST_URL" \
+  -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "events": [
+      {
+        "client_event_id": "00000000-0000-4000-8000-000000000001",
+        "occurred_at": "2026-05-09T15:00:00.000Z",
+        "session_id": "session-smoke-1",
+        "event_type": "page_view",
+        "cid": "g3abc123",
+        "utm_source": "google",
+        "utm_medium": "cpc"
+      }
+    ]
   }'
 ```
 
@@ -322,7 +416,7 @@ Note hardening:
 - `FORCE RLS` attivo su `campaigns`, `candidates`, `staff`,
   `contact_messages`, `analytics_events`.
 
-**Campaigns — aggiornamento `first_data_at` / `last_data_at`:** non gestito qui; resta backlog allineato a `CAMPAIGNS_CONTRACT.md` §4 dopo che l’ingest degli eventi (con `campaign_id`) persiste stabilmente — vedi **`docs/DEVELOPMENT_NOTES.md`** § *Campagne first_data_at / last_data_at*.
+**Campaigns — aggiornamento `first_data_at` / `last_data_at`:** gestito server-side dalla Edge Function **`analytics-ingest`** che, dopo l'insert in `public.analytics_events`, invoca la RPC **`public.apply_campaign_event_timeline(uuid, timestamptz, timestamptz)`** (migrazione **`20260509000010`**, `SECURITY DEFINER`, `EXECUTE` riservato a `service_role`). L'aggiornamento usa `LEAST` / `GREATEST` per essere safe su batch out-of-order e per preservare il check `campaigns_data_window_check`.
 
 ## Auth admin required (E5 baseline)
 

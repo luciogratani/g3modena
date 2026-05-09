@@ -165,6 +165,14 @@ function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
     campaign.metrics.formOpen > 0 ? campaign.metrics.careersSubmit / campaign.metrics.formOpen : 0
   const visitToConversionRate =
     campaign.metrics.pageView > 0 ? campaign.metrics.careersSubmit / campaign.metrics.pageView : 0
+  const hasAnyKpiEvent =
+    campaign.metrics.pageView +
+      campaign.metrics.ctaClick +
+      campaign.metrics.formOpen +
+      campaign.metrics.careersSubmit +
+      campaign.metrics.careersAbandonTotal >
+    0
+  const showWaitingDataNotice = lifecycle === "waiting_data" || !hasAnyKpiEvent
 
   async function handleCopyCampaignUrl() {
     if (!canCopyCampaignUrl) return
@@ -229,6 +237,11 @@ function CampaignCard({ campaign }: { campaign: CampaignRecord }) {
       </CardHeader>
 
       <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
+        {showWaitingDataNotice ? (
+          <p className="rounded-md border border-dashed border-muted-foreground/30 bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+            In attesa dati: nessun evento ancora attribuito a questa campagna.
+          </p>
+        ) : null}
         <ul className="space-y-2">
           <MetricRow
             icon={<Eye className="size-3.5" />}

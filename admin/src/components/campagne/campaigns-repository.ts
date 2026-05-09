@@ -351,9 +351,78 @@ export async function applyCampaignCreativeSignedUrls(
   )
 }
 
-/** Lista da DB + URL firmate per anteprima nel bucket privato `campaign-previews`. */
-export async function loadCampaignsForAdmin(): Promise<CampaignRecord[]> {
-  const list = await listCampaigns()
+/** Riga restituita da `public.campaign_kpi_aggregates_v1()` (snake_case). */
+type CampaignKpiAggregateRow = {
+  campaign_id: string
+  page_view_count: number | string | null
+  cta_click_count: number | string | null
+  careers_form_open_count: number | string | null
+  careers_submit_count: number | string | null
+  careers_abandon_count: number | string | null
+}
+
+/** Sottoinsieme `CampaignMetrics` popolato dagli aggregati `analytics_events` v1 (Step 7). */
+export type CampaignKpiCounts = Pick<
+  CampaignRecord["metrics"],
+  "pageView" | "ctaClick" | "formOpen" | "careersSubmit" | "careersAbandonTotal"
+>
+
+function toFiniteCount(value: number | string | null): number {
+  const n = typeof value === "string" ? Number(value) : value ?? 0
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0
+}
+
+/**
+ * Carica i KPI aggregati per campagna via RPC `campaign_kpi_aggregates_v1` (Step 7).
+ * Ritorna una mappa `campaign_id -> conteggi`. Le campagne senza eventi non compaiono in mappa.
+ */
+export async function loadCampaignKpiAggregates(): Promise<Map<string, CampaignKpiCounts>> {
   const client = getSupabaseClient()
-  return applyCampaignCreativeSignedUrls(client, list)
+  const { data, error } = await client.rpc("campaign_kpi_aggregates_v1")
+  if (error) {
+    throw new Error(error.message || "Impossibile caricare gli aggregati KPI campagne.")
+  }
+  const rows = (data ?? []) as unknown as CampaignKpiAggregateRow[]
+  const map = new Map<string, CampaignKpiCounts>()
+  for (const row of rows) {
+    if (!row.campaign_id) continue
+    map.set(row.campaign_id, {
+      pageView: toFiniteCount(row.page_view_count),
+      ctaClick: toFiniteCount(row.cta_click_count),
+      formOpen: toFiniteCount(row.careers_form_open_count),
+      careersSubmit: toFiniteCount(row.careers_submit_count),
+      careersAbandonTotal: toFiniteCount(row.careers_abandon_count),
+    })
+  }
+  return map
+}
+
+function mergeCampaignWithKpi(record: CampaignRecord, kpi: CampaignKpiCounts | undefined): CampaignRecord {
+  if (!kpi) return record
+  return {
+    ...record,
+    metrics: {
+      ...EMPTY_CAMPAIGN_METRICS,
+      pageView: kpi.pageView,
+      ctaClick: kpi.ctaClick,
+      formOpen: kpi.formOpen,
+      careersSubmit: kpi.careersSubmit,
+      careersAbandonTotal: kpi.careersAbandonTotal,
+    },
+  }
+}
+
+/** Lista da DB + URL firmate per anteprima nel bucket privato `campaign-previews` + KPI aggregati. */
+export async function loadCampaignsForAdmin(): Promise<CampaignRecord[]> {
+  const [list, kpis] = await Promise.all([
+    listCampaigns(),
+    loadCampaignKpiAggregates().catch((err) => {
+      // KPI degradano in modo soft: si mostrano comunque le card con metriche a zero / fallback "In attesa dati".
+      console.warn("[campagne] caricamento KPI fallito", err)
+      return new Map<string, CampaignKpiCounts>()
+    }),
+  ])
+  const merged = list.map((c) => mergeCampaignWithKpi(c, kpis.get(c.id)))
+  const client = getSupabaseClient()
+  return applyCampaignCreativeSignedUrls(client, merged)
 }
