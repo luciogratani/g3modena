@@ -6,7 +6,7 @@ Documento tecnico per chat/agent durante:
 - sviluppo sezione admin e passaggio da dati locali a backend condiviso
 - passaggio da contenuti hardcoded / locali a CMS lato `web`
 
-**Contenuto:** in fondo resta il **piano dati admin** per le aree ancora su persistenza locale o non production-safe. **Aggiornamento 2026-05:** molte integrazioni Supabase sono **già attive** (città REST anon, receiver candidature/contatti via Edge, board `candidates`, inbox `contact_messages`, Auth admin, storage allegati careers). Questo file descrive ancora **contratti e gap** (es. contenuti sito da `site-content` vs DB CMS, camerieri/campagne locali, residuo E3 media CMS).
+**Contenuto:** in fondo resta il **piano dati admin** per le aree ancora su persistenza locale o non production-safe. **Aggiornamento 2026-05:** molte integrazioni Supabase sono **già attive** (città REST anon, receiver candidature/contatti via Edge, board `candidates`, Auth admin, storage allegati careers). **Nota contatti:** gate L2 completo (receiver + inbox admin runtime su `contact_messages`), senza percorso mock/localStorage online. Questo file descrive contratti e gap (es. contenuti sito da `site-content` vs DB CMS, residuo E3 media CMS).
 
 ---
 

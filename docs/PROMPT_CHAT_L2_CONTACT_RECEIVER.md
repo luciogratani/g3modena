@@ -1,6 +1,6 @@
 # Prompt per chat dedicata — Gate **L2** (form contatti + inbox)
 
-**Stato:** implementato (2026-05-01). Receiver: `supabase/functions/contact-submissions/index.ts`; inbox: `admin/src/components/contact-messages/*` su `contact_messages`; roadmap **`docs/IMPLEMENTATION_ROADMAP.md`** (L2 ✓). Il contenuto sotto resta utile come contesto storico / revisione.
+**Stato:** completato (2026-05-09). Receiver implementato (2026-05-01): `supabase/functions/contact-submissions/index.ts`; inbox admin runtime completata su Supabase (`contact_messages`) senza mock/localStorage nel percorso online. Il contenuto sotto resta utile come contesto storico / revisione.
 
 Copia il blocco sotto in una **nuova chat** Cursor solo se serve ripescare il contesto originario.
 

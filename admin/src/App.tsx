@@ -35,8 +35,8 @@ import { AdminLoginPage } from "./components/auth/AdminLoginPage"
 import { GestionaleContatti } from "./components/GestionaleContatti"
 import {
   CONTACT_MESSAGES_UPDATED_EVENT,
-  getNewContactMessagesCount,
-} from "./components/contact-messages/storage"
+  countNewContactMessages,
+} from "./components/contact-messages/contact-messages-repository"
 import { Dashboard } from "./components/Dashboard"
 import { CandidatiBoard } from "./components/CandidatiBoard"
 import { CamerieriPage } from "./components/camerieri/CamerieriPage"
@@ -140,7 +140,7 @@ export default function App() {
   const [activeCities, setActiveCities] = useState<OfficeCity[]>([])
   const activeCitySlugs = useMemo(() => activeCities.map((city) => city.slug), [activeCities])
   const [newCandidatesByCity, setNewCandidatesByCity] = useState<Record<string, number>>({})
-  const [newContactMessagesCount, setNewContactMessagesCount] = useState(getNewContactMessagesCount)
+  const [newContactMessagesCount, setNewContactMessagesCount] = useState(0)
   const authenticatedUserEmail = authSession?.user.email ?? null
 
   const refreshAuthSession = useCallback(async () => {
@@ -246,18 +246,26 @@ export default function App() {
   }, [page, activeCitySlugs])
 
   useEffect(() => {
-    function refreshContactMessagesCount() {
-      setNewContactMessagesCount(getNewContactMessagesCount())
+    let cancelled = false
+
+    async function refreshContactMessagesCount() {
+      try {
+        const count = await countNewContactMessages()
+        if (cancelled) return
+        setNewContactMessagesCount(count)
+      } catch {
+        if (cancelled) return
+        setNewContactMessagesCount(0)
+      }
     }
 
-    refreshContactMessagesCount()
+    void refreshContactMessagesCount()
     window.addEventListener(CONTACT_MESSAGES_UPDATED_EVENT, refreshContactMessagesCount)
     window.addEventListener("focus", refreshContactMessagesCount)
-    window.addEventListener("storage", refreshContactMessagesCount)
     return () => {
+      cancelled = true
       window.removeEventListener(CONTACT_MESSAGES_UPDATED_EVENT, refreshContactMessagesCount)
       window.removeEventListener("focus", refreshContactMessagesCount)
-      window.removeEventListener("storage", refreshContactMessagesCount)
     }
   }, [])
 

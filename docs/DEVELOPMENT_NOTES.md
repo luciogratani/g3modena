@@ -72,7 +72,7 @@ Roadmap checkbox pre-wiring: [`IMPLEMENTATION_ROADMAP.md`](IMPLEMENTATION_ROADMA
 - [x] Web Editor lazy-loaded con fallback uniforme (`PageLoadingFallback`).
 - [x] SEO page reale in admin con salvataggio manuale e validazioni base.
 - [x] Contratto condiviso `@g3/content-contract` adottato tra admin e web.
-- [x] `Contatti > Messaggi`: inbox su **`contact_messages`** (Supabase autenticato), submit web via Edge **`contact-submissions`** (`VITE_CONTACT_ENDPOINT`); loading/error e badge sidebar; gate **L2** (2026-05-01).
+- [x] `Contatti > Messaggi` (L2 inbox, 2026-05-09): receiver web via Edge **`contact-submissions`** (`VITE_CONTACT_ENDPOINT`) + inbox admin su Supabase autenticato (`contact_messages`) completati. Repository dedicato (`listContactMessages`, `updateContactMessageStatus`, count nuovi), mapping snake_case -> UI, gestione `loading/empty/error` con retry, badge sidebar allineato al conteggio DB. Rimossi mock/localStorage dal percorso runtime inbox.
 
 ### Diagnostica Supabase
 - [x] Card `Monitor Supabase` in `Impostazioni` con check mount + retry.
@@ -160,7 +160,7 @@ Test Vitest validazione camerieri estratta (prompt dialog step 5 opzionale), sce
 
 - [x] **Decisione L3 (2026-05-07):** primo go-live in modalita **Static-first** (contenuti web da artifact build consolidato). Il runtime contenuti da DB resta backlog successivo.
 - [x] **Board persistence server-side** (2026-05-01, **L5**): board candidati su `public.candidates` (admin Supabase autenticato), `admin_workflow jsonb` + `kanban_rank numeric`, repository condiviso multi-browser, mock `CANDIDATES` solo come test fixture.
-- [x] **Contatti > Messaggi backend wiring**: Edge `contact-submissions` + inbox admin Supabase (`contact_messages`), stato `nuovo/letto/archiviato` persistito.
+- [x] **Contatti > Messaggi backend wiring** (2026-05-09): receiver Edge `contact-submissions` + inbox admin su Supabase (`contact_messages`) completati; runtime senza mock/localStorage.
 - [ ] **CMS wiring production-safe**: verifica schema, RLS/policy, tenant separation, fallback robusto.
 - [ ] **Web runtime da DB**: lettura reale contenuti da Supabase con fallback/feature-flag.
 - [x] **Auth/protezione admin**: login Supabase + guard route (**E5**/ **L4**, 2026-05-01); hardening deploy pre-prod da confermare.
@@ -206,7 +206,7 @@ Questa sezione fotografa le sorgenti locali che dovranno essere considerate quan
 | Filtri colonna `Nuovo` | `admin:candidates:new-column-filters:state:v1:{slug-sede}` (es. `:modena`, una chiave per `boardCity`) | Restano preferenze locali salvo richiesta sync |
 | Visibilità filtri `Nuovo` | `admin:candidates:new-column-filters:visibility:v1:{slug-sede}` | Restano preferenze locali |
 | Recap giornaliero | `admin:candidates:daily-recap:dismissed-on` | Preferenza locale, non DB v1 |
-| Messaggi contatti | ~~`admin:contact-messages:v1`~~ (legacy); lista ora da **`contact_messages`** | `contact_messages` (L2 ✓) |
+| Messaggi contatti | ~~`admin:contact-messages:v1`~~ rimosso dal runtime inbox (2026-05-09) | `contact_messages` (L2 inbox su Supabase, evento UI `admin:contacts:messages-updated`) |
 | Camerieri CRM | ~~`admin:camerieri:crm:v1`~~ migrato one-shot → **`public.staff`**; evento UI staff `admin:camerieri-staff:list-invalidate` | `staff` ✓ |
 | Sedi | ~~`admin:cities:v1`~~ (legacy); dati da **`public.cities`**; evento **`admin:cities:updated`** solo segnale UI post-mutazione | `cities` (E4 ✓) |
 | Board update | evento `admin:candidates:board-updated` | Mantenuto come signal UI post-writeback DB (sidebar badge + count "Nuovo") |

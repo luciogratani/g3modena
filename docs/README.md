@@ -7,6 +7,7 @@ Indice dei file Markdown dedicati al monorepo (fuori dagli skill/agent esterni).
 | [WEB_DESIGN.md](WEB_DESIGN.md) | Design e UX del sito pubblico |
 | [DB_CMS_INTEGRATION.md](DB_CMS_INTEGRATION.md) | Contratto CMS web, piano dati Supabase, parte Admin |
 | [DEVELOPMENT_NOTES.md](DEVELOPMENT_NOTES.md) | Stato e checklist operative dell’admin |
+| [PROMPT_CHAT_L2_CONTACT_INBOX_SUPABASE.md](PROMPT_CHAT_L2_CONTACT_INBOX_SUPABASE.md) | Prompt operativo per chiudere inbox admin Contatti su Supabase |
 | [PRE_WIRING_CONCEPT.md](PRE_WIRING_CONCEPT.md) | Concept campagne, analytics, città, ERD, RLS |
 | [CAMPAIGNS_CONTRACT.md](CAMPAIGNS_CONTRACT.md) | Contratto operativo campagne tra Admin, Web e DB |
 | [AGENT_PROMPT_ERD_AUDIT.md](AGENT_PROMPT_ERD_AUDIT.md) | Prompt per audit schema / coerenza ERD |

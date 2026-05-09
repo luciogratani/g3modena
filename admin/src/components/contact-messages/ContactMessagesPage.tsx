@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
-import { Inbox } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { AlertTriangle, Inbox, Loader2, RefreshCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ContactMessageDetailSheet } from "./ContactMessageDetailSheet"
 import { ContactMessagesTable } from "./ContactMessagesTable"
@@ -22,7 +22,8 @@ function messageMatchesQuery(message: ContactMessage, query: string): boolean {
 }
 
 export function ContactMessagesPage() {
-  const { messages, selectedMessage, setSelectedMessageId, counters, setStatus } = useContactMessages()
+  const { messages, loading, error, refresh, selectedMessage, setSelectedMessageId, counters, setStatus } =
+    useContactMessages()
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
   const [query, setQuery] = useState("")
 
@@ -67,7 +68,6 @@ export function ContactMessagesPage() {
           <div className="flex items-center gap-2">
             <Inbox className="size-5 text-muted-foreground" />
             <CardTitle className="text-lg">Inbox messaggi</CardTitle>
-            <Badge variant="secondary">Demo operativa</Badge>
           </div>
           <CardDescription>
             Lista messaggi con ricerca, filtro stato, dettaglio e aggiornamento rapido.
@@ -80,11 +80,34 @@ export function ContactMessagesPage() {
             statusFilter={statusFilter}
             onStatusFilterChange={setStatusFilter}
           />
-          <ContactMessagesTable
-            messages={filteredMessages}
-            onOpenMessage={(message) => setSelectedMessageId(message.id)}
-            onUpdateStatus={setStatus}
-          />
+          {loading ? (
+            <div className="rounded-md border p-8">
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Caricamento messaggi in corso...
+              </div>
+            </div>
+          ) : error ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-6">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 size-4 text-destructive" />
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-destructive">Errore caricamento inbox</p>
+                  <p className="text-sm text-muted-foreground">{error}</p>
+                  <Button variant="outline" size="sm" onClick={() => void refresh()}>
+                    <RefreshCw className="mr-2 size-4" />
+                    Riprova
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <ContactMessagesTable
+              messages={filteredMessages}
+              onOpenMessage={(message) => setSelectedMessageId(message.id)}
+              onUpdateStatus={setStatus}
+            />
+          )}
         </CardContent>
       </Card>
 
