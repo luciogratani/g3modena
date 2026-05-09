@@ -306,6 +306,7 @@ Priorita consigliata: `CandidatiBoard` -> `CandidateDetailSheet` -> `CmsWebEdito
 - Verificato `supabase db push`: database remoto allineato (`Remote database is up to date`), inclusa migrazione storage **`20260501000170`** già applicata.
 - Eseguito smoke test **Camerieri end-to-end** con esito positivo (checklist § *Smoke manuale (Camerieri)* completata).
 - **B3 Site Mode Switch:** implementati migrazione `site_settings`, controllo admin e gate web runtime. Migrazione B3 applicata al DB remoto con `supabase db push` ✓. Build locali eseguite: `pnpm build:web` ✓, `pnpm build:admin` ✓. Resta smoke manuale dei 3 stati (`normal`, `maintenance`, `careers_only`).
+- **TODO tecnico (da riprendere):** indagare auto-scroll del sito pubblico verso `#careers` al primo load/reload anche senza anchor (`location.hash === ""`) e in incognito; tracciare root-cause (browser restore vs codice) prima di applicare fix.
 
 ---
 

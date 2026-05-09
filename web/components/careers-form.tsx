@@ -255,6 +255,7 @@ export function CareersForm() {
   const formOpenTrackedRef = useRef(false)
   const lastKnownStepRef = useRef(1)
   const hasSubmittedCurrentAttemptRef = useRef(false)
+  const skipInitialStepFocusRef = useRef(true)
 
   const activeApplicationOfficeCitySlugs = useMemo(
     () => new Set(officeCities.map((city) => city.slug)),
@@ -492,7 +493,18 @@ export function CareersForm() {
   }, [])
 
   useEffect(() => {
-    stepContainerRef.current?.focus()
+    if (skipInitialStepFocusRef.current) {
+      skipInitialStepFocusRef.current = false
+      return
+    }
+    const stepContainer = stepContainerRef.current
+    if (!stepContainer) return
+
+    try {
+      stepContainer.focus({ preventScroll: true })
+    } catch {
+      stepContainer.focus()
+    }
   }, [currentStep])
 
   return (
