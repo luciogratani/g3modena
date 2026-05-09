@@ -373,14 +373,6 @@ function NewCampaignBuilderCard({
     hasRequiredBaseUrl &&
     hasRequiredCampaign
 
-  async function handleCopy() {
-    const target = builtUrl
-    if (!target) return
-    await navigator.clipboard.writeText(target)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1500)
-  }
-
   function onCreativeUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
@@ -449,8 +441,16 @@ function NewCampaignBuilderCard({
 
       if (!inserted) throw new Error("Impossibile assegnare un cid univoco. Riprova tra poco.")
 
+      const insertedCampaignUrl = buildCampaignUrlFromRecord(inserted)
       setPersistedCampaignCid(inserted.cid)
-      setCreatedCampaignUrl(buildCampaignUrlFromRecord(inserted))
+      setCreatedCampaignUrl(insertedCampaignUrl)
+      try {
+        await navigator.clipboard.writeText(insertedCampaignUrl)
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1500)
+      } catch {
+        setCopied(false)
+      }
 
       if (creativePreview && isObjectUrl) {
         URL.revokeObjectURL(creativePreview)
@@ -697,10 +697,6 @@ function NewCampaignBuilderCard({
           </Alert>
         ) : null}
 
-        <Button type="button" variant="outline" onClick={() => void handleCopy()} disabled={!builtUrl || submitting}>
-          {copied ? <Check className="mr-2 size-4" /> : <Copy className="mr-2 size-4" />}
-          {copied ? "URL copiato" : "Copia URL campagna"}
-        </Button>
         <Button type="button" onClick={() => void handlePersistCampaign()} disabled={!hasRequiredFields || submitting}>
           {submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
           {submitting ? "Salvataggio…" : "Crea campagna"}
@@ -718,7 +714,7 @@ function NewCampaignBuilderCard({
         {createdCampaignUrl ? (
           <p className="text-xs text-muted-foreground pb-6">
             Campagna salvata su <span className="font-mono">public.campaigns</span>. Elenco aggiornato in
-            automatico.
+            automatico. {copied ? "Link copiato negli appunti." : "Se il browser lo consente, il link viene copiato automaticamente."}
           </p>
         ) : null}
       </CardContent>

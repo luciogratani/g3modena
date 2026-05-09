@@ -64,6 +64,9 @@ type Page =
   | { kind: "candidates"; citySlug: string }
   | { kind: "waiters"; citySlug: string }
 
+const ADMIN_LAST_PAGE_STORAGE_KEY = "admin:last-page:v1"
+const DEFAULT_PAGE: Page = { kind: "static", value: "dashboard" }
+
 const STATIC_PAGE_TITLES: Record<StaticPage, string> = {
   dashboard: "Dashboard › Overview",
   campaigns: "Marketing › Campagne",
@@ -72,6 +75,40 @@ const STATIC_PAGE_TITLES: Record<StaticPage, string> = {
   contactForm: "Contatti › Messaggi",
   cities: "Config › Sedi",
   settings: "Config › Impostazioni",
+}
+
+function serializePage(page: Page): string {
+  return JSON.stringify(page)
+}
+
+function isValidStaticPage(value: unknown): value is StaticPage {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(STATIC_PAGE_TITLES, value)
+}
+
+function parseStoredPage(rawPage: string | null): Page | null {
+  if (!rawPage) return null
+  try {
+    const parsed = JSON.parse(rawPage) as Partial<Page> | null
+    if (!parsed || typeof parsed !== "object") return null
+    if (parsed.kind === "static" && isValidStaticPage(parsed.value)) {
+      return { kind: "static", value: parsed.value }
+    }
+    if (
+      (parsed.kind === "candidates" || parsed.kind === "waiters") &&
+      typeof parsed.citySlug === "string" &&
+      parsed.citySlug.trim().length > 0
+    ) {
+      return { kind: parsed.kind, citySlug: parsed.citySlug }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function getInitialPageFromSession(): Page {
+  if (typeof window === "undefined") return DEFAULT_PAGE
+  return parseStoredPage(window.sessionStorage.getItem(ADMIN_LAST_PAGE_STORAGE_KEY)) ?? DEFAULT_PAGE
 }
 
 const CmsWebEditor = lazy(() =>
@@ -98,7 +135,7 @@ export default function App() {
     "loading" | "authenticated" | "unauthenticated" | "misconfigured"
   >(hasSupabaseConfig ? "loading" : "misconfigured")
   const [authSession, setAuthSession] = useState<Session | null>(null)
-  const [page, setPage] = useState<Page>({ kind: "static", value: "dashboard" })
+  const [page, setPage] = useState<Page>(getInitialPageFromSession)
   const [themePreference, setThemePreference] = useState<ThemePreference>(getInitialThemePreference)
   const [activeCities, setActiveCities] = useState<OfficeCity[]>([])
   const activeCitySlugs = useMemo(() => activeCities.map((city) => city.slug), [activeCities])
@@ -191,10 +228,19 @@ export default function App() {
   }, [authStatus])
 
   useEffect(() => {
+    if (typeof window === "undefined") return
+    try {
+      window.sessionStorage.setItem(ADMIN_LAST_PAGE_STORAGE_KEY, serializePage(page))
+    } catch {
+      // Ignore storage failures (private mode/quota/security restrictions).
+    }
+  }, [page])
+
+  useEffect(() => {
     if (page.kind === "candidates" || page.kind === "waiters") {
       const stillActive = activeCitySlugs.includes(page.citySlug)
       if (!stillActive) {
-        setPage({ kind: "static", value: "dashboard" })
+        setPage(DEFAULT_PAGE)
       }
     }
   }, [page, activeCitySlugs])
