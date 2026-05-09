@@ -18,29 +18,32 @@ Riferimenti:
 
 ```
 supabase/
-└── migrations/
-    ├── 20260501000000_init_extensions_and_helpers.sql   pgcrypto + trigger updated_at
-    ├── 20260501000010_create_cities.sql                 sedi (source of truth)
-    ├── 20260501000020_create_campaigns.sql              campagne (cid UNIQUE, no status persistito)
-    ├── 20260501000030_create_candidates.sql             form careers + workflow board
-    ├── 20260501000040_create_staff.sql                  ex Camerieri (FK city + opt source_candidate)
-    ├── 20260501000050_create_cms_sections.sql           contenuti CMS + seo
-    ├── 20260501000060_create_contact_messages.sql       inbox /contact
-    ├── 20260501000070_create_analytics_events.sql       eventi append-only
-    ├── 20260501000080_alter_candidates_discard.sql      A4: stato scartati + discard_*
-    ├── 20260501000090_e2b_enable_rls.sql                enable/force RLS
-    ├── 20260501000100_e2b_policies_authenticated_admin.sql
-    ├── 20260501000110_e2b_policies_anon_public.sql
-    ├── 20260501000120_e2b_campaign_lookup_bridge.sql    RPC cid -> campaign_id
-    ├── 20260501000130_e2b_hardening_grants_and_policy_smoke.sql
-    ├── 20260501000140_e3_storage_careers.sql            bucket allegati candidature
-    ├── 20260501000150_e4_candidates_admin_workflow.sql  E4/L5: admin_workflow jsonb + kanban_rank numeric
-    ├── 20260501000160_e3_storage_campaign_previews.sql bucket anteprime campagne (authenticated)
-    ├── 20260501000170_e3_storage_staff_crm_avatars.sql  bucket avatar staff CRM (`crm-staff/`, authenticated)
-    ├── 20260509000010_l6_campaigns_timeline_update.sql  L6: RPC apply_campaign_event_timeline (server-side ingest)
-    └── 20260509000020_l7_campaign_kpi_aggregates.sql    L7: RPC campaign_kpi_aggregates_v1 (KPI card admin)
+├── migrations/
+│   ├── 20260501000000_init_extensions_and_helpers.sql   pgcrypto + trigger updated_at
+│   ├── 20260501000010_create_cities.sql                 sedi (source of truth)
+│   ├── 20260501000020_create_campaigns.sql              campagne (cid UNIQUE, no status persistito)
+│   ├── 20260501000030_create_candidates.sql             form careers + workflow board
+│   ├── 20260501000040_create_staff.sql                  ex Camerieri (FK city + opt source_candidate)
+│   ├── 20260501000050_create_cms_sections.sql           contenuti CMS + seo
+│   ├── 20260501000060_create_contact_messages.sql       inbox /contact
+│   ├── 20260501000070_create_analytics_events.sql       eventi append-only
+│   ├── 20260501000080_alter_candidates_discard.sql      A4: stato scartati + discard_*
+│   ├── 20260501000090_e2b_enable_rls.sql                enable/force RLS
+│   ├── 20260501000100_e2b_policies_authenticated_admin.sql
+│   ├── 20260501000110_e2b_policies_anon_public.sql
+│   ├── 20260501000120_e2b_campaign_lookup_bridge.sql    RPC cid -> campaign_id
+│   ├── 20260501000130_e2b_hardening_grants_and_policy_smoke.sql
+│   ├── 20260501000140_e3_storage_careers.sql            bucket allegati candidature
+│   ├── 20260501000150_e4_candidates_admin_workflow.sql  E4/L5: admin_workflow jsonb + kanban_rank numeric
+│   ├── 20260501000160_e3_storage_campaign_previews.sql  bucket anteprime campagne (authenticated)
+│   ├── 20260501000170_e3_storage_staff_crm_avatars.sql  bucket avatar staff CRM (`crm-staff/`, authenticated)
+│   ├── 20260509000010_l6_campaigns_timeline_update.sql  L6: RPC apply_campaign_event_timeline (server-side ingest)
+│   └── 20260509000020_l7_campaign_kpi_aggregates.sql    L7: RPC campaign_kpi_aggregates_v1 (KPI card admin)
+├── sql/
+│   ├── e2c_rls_smoke_allow_deny.sql                     smoke RLS manuale
+│   └── campaign_kpi_advanced_v1_draft.sql               bozza post-MVP (non migration)
 └── functions/
-    ├── analytics-ingest/                              receiver eventi analytics sito
+    ├── analytics-ingest/                                receiver eventi analytics sito
     ├── contact-submissions/                             receiver form contatti
     └── career-submissions/                              receiver candidature web
 ```
@@ -48,6 +51,10 @@ supabase/
 L'ordine numerico riflette l'ordine consigliato in
 `docs/PRE_WIRING_CONCEPT.md` § "Ordine suggerito migrazioni". Le tabelle che
 referenziano altre (FK) vengono create dopo le tabelle puntate.
+
+Nota: i file in `supabase/sql/` non vengono applicati da `supabase db push`.
+Servono come script manuali/bozze tecniche da promuovere in migration quando
+si decide di attivarle.
 
 ## Applicazione
 

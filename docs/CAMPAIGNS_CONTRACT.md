@@ -124,6 +124,38 @@ Le altre voci (`candidates_created`, `avg_registration_seconds`, `conversioni pe
 restano fuori scope v1 (vedi prompt analytics ingest §"Decisioni operative" punto 4):
 le card mostrano `0` con fallback "In attesa dati" quando la campagna non ha eventi.
 
+### 5.2) Bozza tecnica post-MVP (`campaign_kpi_advanced_v1`)
+
+Bozza pronta in:
+
+- `supabase/sql/campaign_kpi_advanced_v1_draft.sql`
+
+Firma proposta RPC:
+
+```sql
+select * from public.campaign_kpi_advanced_v1();
+```
+
+Output previsto:
+
+- `campaign_id uuid`
+- `candidates_created_count bigint` (count su `public.candidates` per campagna)
+- `avg_registration_seconds numeric(10,2)` (media su `candidates.registration_duration_seconds`)
+- `submit_conversions_by_city jsonb` (mappa `{ city_slug: count }` su `analytics_events` filtrando `event_type = 'careers_submit'`, fallback `unknown`)
+
+Note implementative:
+
+- base table `public.campaigns` (LEFT JOIN aggregati) per restituire anche campagne senza dati avanzati;
+- `security invoker`, `stable`, `search_path` esplicito;
+- grant solo a `authenticated` (admin).
+
+Attivazione quando serve (non ora):
+
+1. creare migration versionata in `supabase/migrations/`;
+2. copiare `CREATE FUNCTION` + `COMMENT` + `REVOKE/GRANT` dalla bozza;
+3. eseguire `supabase db push`;
+4. integrare repository admin campagne con fallback se la RPC non e' ancora deployata.
+
 ---
 
 ## 6) Storage creativita`

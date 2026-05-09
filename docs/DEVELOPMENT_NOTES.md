@@ -244,7 +244,7 @@ Riferimenti: `supabase/README.md`, `docs/CAMPAIGNS_CONTRACT.md`, `docs/ANALYTICS
 
 ## TODO post-lancio / evolutivi
 
-- [ ] **Campagne › KPI avanzate post-MVP:** estendere oltre `campaign_kpi_aggregates_v1` con `candidates_created`, `avg_registration_seconds` e conversioni per citta per `campaign_id` (RPC dedicata + card admin), come da [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md) roadmap.
+- [ ] **Campagne › KPI avanzate post-MVP:** estendere oltre `campaign_kpi_aggregates_v1` con `candidates_created`, `avg_registration_seconds` e conversioni per citta per `campaign_id` (RPC dedicata + card admin), come da [`CAMPAIGNS_CONTRACT.md`](CAMPAIGNS_CONTRACT.md) roadmap. Bozza SQL pronta: `supabase/sql/campaign_kpi_advanced_v1_draft.sql` (da promuovere a migration al momento opportuno).
 - [ ] Publish flow CMS (`draft/published`, `updated_at`, versioning).
 - [ ] Storage media strutturato (bucket/policy/metadata completi).
 - [ ] Estensione lazy-load ad altre pagine pesanti (`Board`, `SEO`, `Settings`).
